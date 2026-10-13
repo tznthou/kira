@@ -1,4 +1,4 @@
-// v8 基準的示範 diff（mockup/v8-kirazuri-lines-sys.html @ 9385aaf）：原始碼逐字抄來，只補型別、縮排少兩格。
+// v8 基準的示範 diff（mockup/v8-kirazuri-lines-sys.html @ 16f69d6）：原始碼逐字抄來，只補型別、縮排少兩格。
 // 由 mockup/tools/port_ref_diffs.py 產生；基準的示範 diff 改了就重跑它（手抄會抄錯，跳脫序列也會被換掉）。
 // 格式是基準的 { p, s, hunks, binary?, tooLarge?, omitted? }，fromRef() 轉成後端的 DiffFile。
 // 只在 dev 的 fidelity 入口使用，不進正式包。
