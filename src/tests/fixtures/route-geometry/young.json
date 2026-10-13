@@ -1,0 +1,8 @@
+{
+  "_source": "route_cases.mjs（第二份走線實作，不是 routeGeometry.ts 自己）對 state_routes.mjs 的 young 狀態算的繪製順序折線與橋；產生：node --experimental-strip-types --no-warnings mockup/tools/routes/route_cases.mjs --json state:young；2026-10-08",
+  "lines": [
+    {"color":"trunk","pts":[[19,17],[19,51]]},
+    {"color":"trunk","pts":[[19,51],[19,85]]}
+  ],
+  "crossings": []
+}

@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+target/
+src-tauri/gen/
+
+# AI assistant context
+.claude/
+
+# macOS
+.DS_Store
+.claude/RESUME.md

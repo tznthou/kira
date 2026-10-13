@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-TW" data-line="trunk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kira</title>
+    <script>
+      // 首繪前就套用主題（同 v8 基準）：模組腳本要等文件解析完才跑，暗色使用者會先閃一下預設的亮色。
+      // 規則對齊 themeStore（src/tests/themeFirstPaint.test.ts 逐案比對）；之後 initTheme 以 store 為準再寫一次
+      (() => {
+        let theme = "light";
+        try {
+          const raw = localStorage.getItem("kira-theme-v8");
+          const saved = raw === null ? undefined : JSON.parse(raw)?.state?.theme;
+          if (saved === "light" || saved === "dark") theme = saved;
+          else {
+            const legacy = localStorage.getItem("kira-theme");
+            if (legacy && JSON.parse(legacy)?.state?.theme === "ink") theme = "dark";
+          }
+        } catch {
+          // 壞掉的 JSON：store 會停在初始值 light，這裡也一樣
+        }
+        document.documentElement.dataset.theme = theme;
+        // 非 macOS 沒有紅綠燈：首繪前就把站牌左邊的留白收回（macOS 由 App 依全螢幕切換）。
+        // 規則同 src/lib/platform.ts 的 MAC_UA
+        if (!/Macintosh|Mac OS X/.test(navigator.userAgent)) document.documentElement.dataset.chrome = "full";
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

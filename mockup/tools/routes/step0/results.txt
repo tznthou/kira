@@ -1,0 +1,26 @@
+s1-clone             remote branches                                      origin/HEAD [refs/remotes/origin/HEAD] (symbolic), origin/feat/x [refs/remotes/origin/feat/x], origin/gone-later [refs/remotes/origin/gone-later], origin/main [refs/remotes/origin/main]
+s1-clone             branch_remote_name(origin/main)                      Ok("origin")
+s1-clone             branch_remote_name(origin/feat/x)                    Ok("origin")
+s1-clone             name_on_remote(origin/feat/x)                        Ok("refs/heads/feat/x") via refspec "+refs/heads/*:refs/remotes/origin/*"
+s1-clone             find_reference(origin/HEAD)                          Ok(kind=Some(Symbolic), symbolic_target=Some("refs/remotes/origin/main")) resolves to "refs/remotes/origin/main"
+s1-clone             branch_upstream_name(main)                           Ok("refs/remotes/origin/main") tracking_ref_exists=true
+s1-clone             branch_upstream_name(nolink)                         Err(code=NotFound, class=Config, "config value 'branch.nolink.remote' was not found")
+s2-slash-remote      remote branches                                      origin/HEAD [refs/remotes/origin/HEAD] (symbolic), team/origin/feat/x [refs/remotes/team/origin/feat/x], team/origin/gone-later [refs/remotes/team/origin/gone-later], team/origin/HEAD [refs/remotes/team/origin/HEAD] (symbolic), team/origin/main [refs/remotes/team/origin/main], origin/feat/x [refs/remotes/origin/feat/x], origin/gone-later [refs/remotes/origin/gone-later], origin/main [refs/remotes/origin/main]
+s2-slash-remote      branch_remote_name(team/origin/main)                 Ok("team/origin")
+s2-slash-remote      name_on_remote(team/origin/feat/x)                   Ok("refs/heads/feat/x") via refspec "+refs/heads/*:refs/remotes/team/origin/*"
+s2-slash-remote      find_reference(team/origin/HEAD)                     Ok(kind=Some(Symbolic), symbolic_target=Some("refs/remotes/team/origin/main")) resolves to "refs/remotes/team/origin/main"
+s3-stale             remote branches                                      gone/feat [refs/remotes/gone/feat], old/feat/x [refs/remotes/old/feat/x], old/gone-later [refs/remotes/old/gone-later], old/HEAD [refs/remotes/old/HEAD] (symbolic), old/main [refs/remotes/old/main], origin/HEAD [refs/remotes/origin/HEAD] (symbolic), origin/feat/x [refs/remotes/origin/feat/x], origin/gone-later [refs/remotes/origin/gone-later], origin/main [refs/remotes/origin/main]
+s3-stale             branch_remote_name(gone/feat) [no such remote]       Err(code=NotFound, class=Reference, "could not determine remote for 'refs/remotes/gone/feat'")
+s3-stale             branch_remote_name(old/main) [remote config gone]    Err(code=NotFound, class=Reference, "could not determine remote for 'refs/remotes/old/main'")
+s4-ambiguous         branch_remote_name(origin/main)                      Err(code=Ambiguous, class=Reference, "reference 'refs/remotes/origin/main' is ambiguous")
+s5-custom-refspec    remote branches                                      origin/HEAD [refs/remotes/origin/HEAD] (symbolic), upstream/feat/x [refs/remotes/upstream/feat/x], upstream/gone-later [refs/remotes/upstream/gone-later], upstream/main [refs/remotes/upstream/main], origin/feat/x [refs/remotes/origin/feat/x], origin/gone-later [refs/remotes/origin/gone-later], origin/main [refs/remotes/origin/main]
+s5-custom-refspec    branch_remote_name(upstream/main)                    Ok("origin")
+s5-custom-refspec    name_on_remote(upstream/feat/x)                      Ok("refs/heads/feat/x") via refspec "+refs/heads/*:refs/remotes/upstream/*"
+s5-custom-refspec    branch_upstream_name(main)                           Ok("refs/remotes/upstream/main") tracking_ref_exists=true
+s6-no-origin-head    find_reference(origin/HEAD)                          Err(code=NotFound, class=Reference, "reference 'refs/remotes/origin/HEAD' not found")
+s7-dangling-head     find_reference(origin/HEAD)                          Ok(kind=Some(Symbolic), symbolic_target=Some("refs/remotes/origin/renamed-away")) resolve Err(code=NotFound, class=Reference, "reference 'refs/remotes/origin/renamed-away' not found")
+s7-dangling-head     remote branches                                      origin/HEAD [refs/remotes/origin/HEAD] (symbolic), origin/feat/x [refs/remotes/origin/feat/x], origin/gone-later [refs/remotes/origin/gone-later], origin/main [refs/remotes/origin/main]
+s8-upstream-pruned   branch_upstream_name(gone-later)                     Ok("refs/remotes/origin/gone-later") tracking_ref_exists=false
+s9-upstream-local    branch_upstream_name(feat-local)                     Ok("refs/heads/main") tracking_ref_exists=true
+s10-detached         head()                                               Ok(target=Some("a7f6df1"), shorthand=Some("HEAD")) head_detached=true
+s11-unborn           head()                                               Err(code=UnbornBranch, class=Reference, "reference 'refs/heads/main' not found") head_detached=false

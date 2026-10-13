@@ -1,0 +1,25 @@
+{
+  "_source": "route_cases.mjs（第二份走線實作，不是 routeGeometry.ts 自己）對 state_routes.mjs 的 routes 狀態算的繪製順序折線與橋；產生：node --experimental-strip-types --no-warnings mockup/tools/routes/route_cases.mjs --json state:routes；2026-10-08",
+  "lines": [
+    {"color":"shinsha","pts":[[39,17],[39,153]]},
+    {"color":"murasaki","pts":[[79,85],[79,255],[62,272],[36,272],[19,289]]},
+    {"color":"gunjo","pts":[[59,51],[59,79],[19,119]]},
+    {"color":"trunk","pts":[[19,119],[19,187]]},
+    {"color":"shinsha","pts":[[39,153],[39,255]]},
+    {"color":"odo","pts":[[59,221],[59,255],[42,272],[36,272],[19,289]]},
+    {"color":"trunk","pts":[[19,187],[19,289]]},
+    {"color":"rokusho","pts":[[59,357],[42,374],[36,374],[19,391]]},
+    {"color":"trunk","pts":[[39,153],[29,163],[29,177],[19,187]]},
+    {"color":"trunk","pts":[[19,289],[19,323]]},
+    {"color":"trunk","pts":[[19,323],[19,391]]},
+    {"color":"shinsha","pts":[[39,255],[39,374],[36,374],[19,391]]},
+    {"color":"trunk","pts":[[19,391],[19,425]]},
+    {"color":"trunk","pts":[[19,425],[19,459]]},
+    {"color":"trunk","pts":[[19,459],[19,506]]}
+  ],
+  "crossings": [
+    {"lower":[[39,17],[39,153]],"x":39,"y":99},
+    {"lower":[[39,255],[39,374],[36,374],[19,391]],"x":39,"y":272},
+    {"lower":[[39,255],[39,374],[36,374],[19,391]],"x":39,"y":272}
+  ]
+}

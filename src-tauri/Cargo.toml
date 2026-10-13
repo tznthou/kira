@@ -1,0 +1,56 @@
+[package]
+name = "kira"
+version = "0.1.0"
+description = "Kira — 最美的 Git GUI 工具"
+authors = ["tznthou <service@tznthou.com>"]
+license = "Apache-2.0"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "kira_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+git2 = { version = "0.19", default-features = false, features = ["vendored-libgit2", "vendored-openssl", "https"] }
+thiserror = "1.0"
+nanoid = "0.4"
+# reqwest with rustls-tls：避免 system openssl 跟 vendored libgit2 (vendored openssl) link 衝突
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# keyring 3：4.x transitive deps 需要 rustc 1.90+（高過本專案 MSRV 1.77.2），3.x 兼容
+# 對應三平台 native backend（macOS Keychain / Windows Credential Manager / Linux Secret Service）
+keyring = { version = "3", default-features = false, features = ["apple-native", "windows-native", "linux-native-sync-persistent"] }
+# tokio::time::sleep 給 device flow polling 用，Tauri 2 已 spawn tokio runtime 但 tokio::time 模組需顯式 dep
+tokio = { version = "1", features = ["time"] }
+# url：cred callback 用 host parsing（reqwest 0.12 transitive 已含，加 explicit dep 不增 binary size）
+url = "2"
+futures = "0.3"
+tauri-plugin-opener = "2"
+# tempfile: T13a recent_repos.json atomic write (NamedTempFile::new_in + persist)。
+# dev-dependencies 既有同版本（test fixtures 用 tempfile::tempdir），保留以維持 Cargo 解析。
+tempfile = "3"
+# notify 6.1.1: T9d fs watcher（偵測外部 git 操作讓 UI 自動 refresh）。鎖 =6.1.1
+# （MSRV 1.60 兼容專案 1.77.2；8.x/9.x MSRV 1.88、notify-debouncer-full 1.85 超標）。
+# 型別只在 fs/watcher.rs 內使用、emit 自訂 payload 不外洩 → 移除/換版只動單檔。
+notify = "=6.1.1"
+
+[dev-dependencies]
+tempfile = "3"
+mockito = "1"
+# tokio macros + runtime 給 #[tokio::test] 跑 mockito async server
+tokio = { version = "1", features = ["macros", "rt"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+debug = false
+panic = "abort"
+incremental = false

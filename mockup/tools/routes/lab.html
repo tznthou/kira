@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="zh-TW" data-theme="light" data-line="trunk">
+<head>
+<meta charset="utf-8">
+<title>Kira · 走線實驗室（v8 Phase 0b P4）</title>
+<!-- 這是原始檔：lab_data.mjs 會把它連同資料複製到 mockup/fidelity-out/route-lab/，開那裡的 lab.html
+     （wk-shot 只開放讀取頁面所在的目錄；資料含 kira 的 commit 訊息，不進版控）。
+     基準的 <style> 逐字（lab_data.mjs 抽出）：列、線、站、主題與 app 同一份 -->
+<link rel="stylesheet" href="base.css">
+<style>
+  /* 實驗室自己的外框；graph 本身全用基準 CSS */
+  .lab { position: relative; z-index: 1; height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; padding: 8px 12px 12px; }
+  .lab .graph-pane { grid-area: auto; }  /* 基準的 grid-area: graph 在這裡沒有對應的具名區域，會長出隱含的欄 */
+  .lab-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12.5px; color: var(--ink-2); }
+  .lab-bar label { display: inline-flex; align-items: center; gap: 5px; }
+  .lab-bar b { color: var(--ink); font-weight: 600; }
+  .lab-bar select { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--sheet-hi); border: 1px solid var(--hairline); border-radius: 4px; padding: 2px 4px; }
+  .lab-bar .sep { width: 1px; height: 18px; background: var(--hairline); }
+  .lab-bar .m { font-family: var(--type-mono); font-size: 12px; color: var(--ink-3); }
+  .lab-bar .m b { font-weight: 600; color: var(--ink-2); }
+  .lab-mark { fill: none; stroke: var(--gold-ink); stroke-width: 1.5; stroke-dasharray: 5 4; }
+  .lab-mark-bg { fill: oklch(0.80 0.12 85 / 0.10); }
+  .rd-mini { font-family: var(--type-mono); }
+</style>
+</head>
+<body>
+<div class="ground" aria-hidden="true"><div class="flecks"></div></div>
+<div class="lab">
+  <header class="lab-bar" id="bar"></header>
+  <section class="sheet graph-pane" aria-label="Commit graph">
+    <div class="graph-scroll" id="graph-scroll">
+      <div class="graph" id="graph" role="listbox" aria-label="Git commit graph history">
+        <svg class="lanes" id="lanes" aria-hidden="true"></svg>
+        <div id="rows"></div>
+      </div>
+    </div>
+  </section>
+</div>
+<script src="lab-data.js"></script>
+<script>
+(() => {
+  /* ---------- 參數 ---------- */
+  const Q = new URLSearchParams(location.search);
+  const root = document.documentElement;
+  root.dataset.theme = Q.get("theme") === "dark" ? "dark" : "light";
+  if (!window.LAB) { document.body.textContent = "lab-data.js 不在：先跑 node --experimental-strip-types --no-warnings mockup/tools/routes/lab_data.mjs，再開 mockup/fidelity-out/route-lab/lab.html"; root.dataset.ready = "error"; return; }
+  const repoName = window.LAB.repos[Q.get("repo")] ? Q.get("repo") : "react";
+  const R = window.LAB.repos[repoName];
+  root.dataset.line = R.accent;
+
+  // 候選規則：每類第一個是基準現行畫法
+  const RULES = {
+    constrained: ["受限（dx > dy）", { base: "現行：往回折", z: "Z 形：列界上走水平", flat: "45° 後水平進站", steep: "直線斜接（非 45°）" }],
+    fanin: ["同側進站", { base: "現行：資料順序", shared: "共用斜線，近欄畫在上", comb: "近欄 45°，其餘直下後水平進站", capsule: "膠囊轉乘站，全部直下", fan: "扇形：直下到上一列再斜接（非 45°）" }],
+    cross: ["交叉", { none: "現行：無橋", runs: "直線在上，斜線斷開", links: "斜線在上，直線斷開", holes: "斜線在上，直線挖洞（基準實作）" }],
+    reverse: ["反向 merge", { overlap: "現行：疊在 parent 那欄", gap: "走欄間空隙", steep: "直線斜接（非 45°）" }],
+    graze: ["擦站 / 長斜線", { base: "現行：長斜線", zlong: "跨 2 欄以上一律 Z 形", zlong3: "跨 3 欄以上一律 Z 形" }],
+    near: ["列界匯流", { base: "沒有：隔壁欄照舊 45°", comb: "同側全部沿列界：2 欄走 Z、1 欄迷你 Z（子超定）", miniz: "只改 1 欄（三條匯流時多一座橋，落選）", skip: "三條匯流時 1 欄不改（落選）" }],
+  };
+  const opt = {};
+  for (const [k, [, o]] of Object.entries(RULES)) opt[k] = o[Q.get(k)] ? Q.get(k) : Object.keys(o)[0];
+  const CASES = { constrained: "受限", fanin: "同側進站", cross: "交叉", reverse: "反向 merge", graze: "擦站" };
+  const caseName = CASES[Q.get("case")] ? Q.get("case") : "constrained";
+  const showMark = Q.get("mark") !== "0";
+
+  /* ---------- 幾何：與基準 drawMap 同一組常數 ---------- */
+  const ROW = 34, LANE = 20, X0 = 19, LW = 3.25;
+  const X = (s) => X0 + s * LANE;
+  const Y = (i) => i * ROW + ROW / 2;
+  const n = R.rows.length;
+  const H = n * ROW + (R.truncated ? 30 : 12);
+  const slotOf = (r) => R.lines[R.rows[r].line].slot;
+  const colorOf = (lineIdx) => `var(--l-${R.lines[lineIdx].color})`;
+  // parent 自己的線從上方直下到它（main 合進分支時，merge 的 parent 那欄有直通的線）
+  const runInto = new Set(R.tracks.filter((t) => t.kind === "run" && t.p >= 0).map((t) => t.p));
+  const parentsOf = new Map();
+  for (const t of R.tracks) parentsOf.set(t.c, (parentsOf.get(t.c) || 0) + 1);
+  // 同側進站：fork 進同一站、同一側的群組
+  const fanOf = new Map();
+  for (const t of R.tracks) {
+    if (t.kind !== "fork" || t.p < 0) continue;
+    const side = Math.sign(slotOf(t.c) - slotOf(t.p));
+    if (!side) continue;
+    const key = `${t.p}|${side}`;
+    if (!fanOf.has(key)) fanOf.set(key, []);
+    fanOf.get(key).push(t);
+  }
+  const fanGroup = (t) => { const g = fanOf.get(`${t.p}|${Math.sign(slotOf(t.c) - slotOf(t.p))}`); return g && g.length > 1 ? g : null; };
+
+  function zFork(x1, y1, x2, y2, dir) {
+    // 子站直下到 parent 上一列 → 45° 到列界 → 沿列界水平 → 45° 進站（水平段只在列界，不經過站心）
+    const yb = y2 - ROW / 2, pts = [[x1, y1]];
+    if (yb - ROW / 2 > y1) pts.push([x1, yb - ROW / 2]);
+    pts.push([x1 + dir * ROW / 2, yb], [x2 - dir * ROW / 2, yb], [x2, y2]);
+    return pts;
+  }
+  function zMerge(x1, y1, x2, y2, dir) {
+    const yb = y1 + ROW / 2, pts = [[x1, y1], [x1 + dir * ROW / 2, yb], [x2 - dir * ROW / 2, yb], [x2, yb + ROW / 2]];
+    if (y2 > yb + ROW / 2) pts.push([x2, y2]);
+    return pts;
+  }
+  // 一條軌道的折線；o = 規則
+  function route(t, o) {
+    const x1 = X(slotOf(t.c)), y1 = Y(t.c);
+    if (t.p < 0 && t.k === 0) return { pts: [[x1, y1], [x1, H]], link: false };
+    const x2 = t.p < 0 ? X(R.lines[t.line].slot) : X(slotOf(t.p)), y2 = t.p < 0 ? H : Y(t.p);
+    const dx = Math.abs(x2 - x1), dy = y2 - y1, dir = Math.sign(x2 - x1);
+    if (dx === 0) return { pts: [[x1, y1], [x2, y2]], link: false };
+    const long = dx >= 2 * LANE;
+    // 「跨 N 欄以上一律 Z 形」照字面：受限的長連接也一樣（Z 形在 dx > dy 時照樣成立）。
+    // 跨 2 欄的 45° 只經過 1 個中間欄（在列界上方 3px），擦不到站；擦站從第 2 個中間欄起（距站心 6px）
+    const zAll = (o.graze === "zlong" && long) || (o.graze === "zlong3" && dx >= 3 * LANE);
+    if (t.k > 0) {
+      if (t.p >= 0 && runInto.has(t.p) && o.reverse !== "overlap") {
+        if (o.reverse === "steep") return { pts: [[x1, y1], [x2, y2]], link: true };
+        const gx = x2 - dir * LANE / 2, run = Math.abs(gx - x1);
+        if (run <= dy - LANE / 2) return { pts: [[x1, y1], [gx, y1 + run], [gx, y2 - LANE / 2], [x2, y2]], link: true };
+        return { pts: [[x1, y1], [x2, y2]], link: true };
+      }
+      if (zAll) return { pts: zMerge(x1, y1, x2, y2, dir), link: true };
+      if (dx > dy) {
+        if (o.constrained === "z") return { pts: zMerge(x1, y1, x2, y2, dir), link: true };
+        if (o.constrained === "flat") return { pts: [[x1, y1], [x2 - dir * dy, y1], [x2, y2]], link: true };
+        if (o.constrained === "steep") return { pts: [[x1, y1], [x2, y2]], link: true };
+      }
+      return { pts: [[x1, y1], [x2, y1 + dx], [x2, y2]], link: true };
+    }
+    // fork：分支的第一站接回分岔點
+    const fan = fanGroup(t);
+    if (fan && (o.fanin === "comb" || o.fanin === "capsule" || o.fanin === "fan")) {
+      const nearest = fan.reduce((a, b) => (Math.abs(slotOf(a.c) - slotOf(a.p)) <= Math.abs(slotOf(b.c) - slotOf(b.p)) ? a : b));
+      if (o.fanin === "capsule") return { pts: [[x1, y1], [x1, y2]], link: true };
+      // 扇形：全部直下到 parent 的上一列，再各自直線斜接進站（角度各不相同，只在站心相會）
+      if (o.fanin === "fan") return { pts: y2 - ROW > y1 ? [[x1, y1], [x1, y2 - ROW], [x2, y2]] : [[x1, y1], [x2, y2]], link: true };
+      if (t !== nearest) return { pts: [[x1, y1], [x1, y2], [x2, y2]], link: true };
+    }
+    if (zAll) return { pts: zFork(x1, y1, x2, y2, dir), link: true };
+    if (dx > dy) {
+      if (o.constrained === "z") return { pts: zFork(x1, y1, x2, y2, dir), link: true };
+      if (o.constrained === "flat") return { pts: [[x1, y1], [x1 + dir * dy, y2], [x2, y2]], link: true };
+      if (o.constrained === "steep") return { pts: [[x1, y1], [x2, y2]], link: true };
+    }
+    return { pts: [[x1, y1], [x1, y2 - dx], [x2, y2]], link: true };
+  }
+  const d = (pts) => `M${pts.map(([x, y]) => `${+x.toFixed(2)} ${+y.toFixed(2)}`).join("L")}`;
+  // 整個 repo 的折線（依軌道順序）。迷你 Z：一站的某一側已有連接線沿列界進站（最後一段是列界到站心的 17px 45°），
+  // 從那一側隔壁欄照舊 45° 進站的 fork 改成直下到列界、沿列界 3px、接同一段 45°；出站對稱（merge 先接那段 45°、沿列界 3px、再直下）
+  const memo = new Map();
+  function routeAll(o) {
+    const key = JSON.stringify(o);
+    if (memo.has(key)) return memo.get(key);
+    const all = R.tracks.map((t) => route(t, o));
+    if (o.near !== "base") {
+      const hb = ROW / 2, ins = new Set(), outs = new Set(), diag2 = new Set();
+      // 一般 45° 的形狀：fork = 直下再斜進 parent；merge = 斜出再直下
+      const forkDiag = (r, t) => t.k === 0 && r.pts.length === 3 && r.pts[1][0] === r.pts[0][0];
+      const mergeDiag = (r, t) => t.k > 0 && r.pts.length === 3 && r.pts[1][0] === r.pts[2][0] && r.pts[1][1] - r.pts[0][1] === Math.abs(r.pts[2][0] - r.pts[0][0]);
+      all.forEach((r, i) => {
+        const { pts } = r, t = R.tracks[i], [a, b] = pts.slice(-2), [c, e] = pts, span = Math.abs(pts[pts.length - 1][0] - pts[0][0]);
+        if (b[1] - a[1] === hb && Math.abs(b[0] - a[0]) === hb) ins.add(`${b}|${Math.sign(a[0] - b[0])}`);
+        if (e[1] - c[1] === hb && Math.abs(e[0] - c[0]) === hb) outs.add(`${c}|${Math.sign(e[0] - c[0])}`);
+        if (span === 2 * LANE && forkDiag(r, t)) diag2.add(`in|${b}|${Math.sign(pts[0][0] - b[0])}`);
+        if (span === 2 * LANE && mergeDiag(r, t)) diag2.add(`out|${c}|${Math.sign(pts[2][0] - c[0])}`);
+      });
+      all.forEach((r, i) => {
+        const t = R.tracks[i], [p, q, e] = r.pts;
+        if (!r.link || r.pts.length !== 3) return;
+        const span = Math.abs(e[0] - p[0]), s = Math.sign(e[0] - p[0]);
+        const intoKey = `${e}|${-s}`, outKey = `${p}|${s}`;
+        if (span === LANE && forkDiag(r, t) && ins.has(intoKey) && !(o.near === "skip" && diag2.has(`in|${intoKey}`))) {
+          all[i] = { ...r, pts: [p, [p[0], e[1] - hb], [e[0] - s * hb, e[1] - hb], e] };
+        } else if (span === LANE && mergeDiag(r, t) && outs.has(outKey) && !(o.near === "skip" && diag2.has(`out|${outKey}`))) {
+          all[i] = { ...r, pts: [p, [p[0] + s * hb, p[1] + hb], [e[0], p[1] + hb], e] };
+        } else if (o.near === "comb" && span === 2 * LANE && forkDiag(r, t) && ins.has(intoKey)) {
+          // 2 欄的改走 Z：直下到 parent 上一列、45° 到列界、沿列界、45° 進站
+          const pts = [p];
+          if (e[1] - ROW > p[1]) pts.push([p[0], e[1] - ROW]);
+          all[i] = { ...r, pts: [...pts, [p[0] + s * hb, e[1] - hb], [e[0] - s * hb, e[1] - hb], e] };
+        } else if (o.near === "comb" && span === 2 * LANE && mergeDiag(r, t) && outs.has(outKey)) {
+          const pts = [p, [p[0] + s * hb, p[1] + hb], [e[0] - s * hb, p[1] + hb], [e[0], p[1] + ROW]];
+          all[i] = { ...r, pts: e[1] > p[1] + ROW ? [...pts, e] : pts };
+        }
+      });
+    }
+    memo.set(key, all);
+    return all;
+  }
+
+  /* ---------- 量測：同一套折線，現行規則找實例、作用中規則算剩下多少 ---------- */
+  function measure(o) {
+    const segs = [], routed = routeAll(o);
+    R.tracks.forEach((t, i) => {
+      const { pts } = routed[i];
+      for (let k = 1; k < pts.length; k++) segs.push({ i, a: pts[k - 1], b: pts[k], t });
+    });
+    const back = new Set(), crossings = [], grazes = [], overlaps = [];
+    const vert = new Map();  // x → 直線段
+    for (const s of segs) {
+      if (s.b[1] < s.a[1] - 0.01) back.add(s.i);
+      if (Math.abs(s.a[0] - s.b[0]) < 0.01) {
+        const x = s.a[0];
+        if (!vert.has(x)) vert.set(x, []);
+        vert.get(x).push(s);
+      }
+    }
+    const stationAt = new Set(R.rows.map((r, i) => `${slotOf(i)}|${i}`));
+    for (const s of segs) {
+      const [ax, ay] = s.a, [bx, by] = s.b;
+      if (Math.abs(ax - bx) < 0.01) continue;
+      const lo = Math.min(ax, bx), hi = Math.max(ax, bx);
+      for (let slot = Math.ceil((lo - X0) / LANE); X(slot) < hi; slot++) {
+        const x = X(slot);
+        if (x <= lo + 0.01 || x >= hi - 0.01) continue;
+        const y = ay + ((x - ax) / (bx - ax)) * (by - ay);
+        for (const v of vert.get(x) || []) {
+          if (v.i === s.i) continue;
+          const vlo = Math.min(v.a[1], v.b[1]), vhi = Math.max(v.a[1], v.b[1]);
+          if (y > vlo + 0.01 && y < vhi - 0.01) crossings.push({ x, y, s, v });
+        }
+        const r = Math.round((y - ROW / 2) / ROW);
+        if (stationAt.has(`${slot}|${r}`) && Math.abs(y - Y(r)) < 9) grazes.push({ x, y, s, r });
+      }
+    }
+    // 不同軌道的線段共線重疊（斜線依截距、水平依 y、直線依 x 分桶）
+    const buckets = new Map();
+    for (const s of segs) {
+      const [ax, ay] = s.a, [bx, by] = s.b, dxs = bx - ax, dys = by - ay;
+      let key, lo, hi;
+      if (Math.abs(dxs) < 0.01) { key = `v${ax}`; lo = Math.min(ay, by); hi = Math.max(ay, by); }
+      else if (Math.abs(dys) < 0.01) { key = `h${ay}`; lo = Math.min(ax, bx); hi = Math.max(ax, bx); }
+      else { const m = dys / dxs; key = `d${m.toFixed(3)}|${(ay - m * ax).toFixed(1)}`; lo = Math.min(ax, bx); hi = Math.max(ax, bx); }
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push({ lo, hi, s });
+    }
+    for (const list of buckets.values()) {
+      if (list.length < 2) continue;
+      list.sort((p, q) => p.lo - q.lo);
+      for (let a = 0; a < list.length; a++) {
+        for (let b = a + 1; b < list.length && list[b].lo < list[a].hi - 1; b++) {
+          if (list[a].s.i !== list[b].s.i && Math.min(list[a].hi, list[b].hi) - list[b].lo > 1) overlaps.push([list[a].s, list[b].s]);
+        }
+      }
+    }
+    // 膠囊站蓋住的直通線：別條線在膠囊那一列從膠囊下面穿過，畫面上會像也停在這站
+    let hidden = 0;
+    if (o.fanin === "capsule") {
+      for (const g of fanOf.values()) {
+        if (g.length < 2) continue;
+        const p = g[0].p, own = new Set(g.map((t) => R.tracks.indexOf(t)));
+        const xs = g.map((t) => X(slotOf(t.c))).concat(X(slotOf(p)));
+        const a = Math.min(...xs), b = Math.max(...xs), y = Y(p);
+        for (const [x, list] of vert) {
+          if (x <= a || x >= b) continue;
+          if (list.some((v) => !own.has(v.i) && Math.min(v.a[1], v.b[1]) < y - 0.01 && Math.max(v.a[1], v.b[1]) > y + 0.01)) hidden++;
+        }
+      }
+    }
+    return { back, crossings, grazes, overlaps, hidden };
+  }
+
+  // 實例：用現行規則找（切換候選時位置不變）
+  const BASE = Object.fromEntries(Object.entries(RULES).map(([k, [, o]]) => [k, Object.keys(o)[0]]));
+  const base = measure(BASE);
+  const span = (rows, slots) => ({ r0: Math.min(...rows), r1: Math.max(...rows), s0: Math.min(...slots), s1: Math.max(...slots) });
+  const inst = { constrained: [], fanin: [], cross: [], reverse: [], graze: [] };
+  R.tracks.forEach((t) => {
+    if (t.p < 0 || t.kind === "run") return;
+    const sc = slotOf(t.c), sp = slotOf(t.p), dx = Math.abs(sc - sp) * LANE, dy = (t.p - t.c) * ROW;
+    if (dx > dy) inst.constrained.push({ ...span([t.c, t.p], [sc, sp]), sev: dx - dy, note: `${t.kind === "fork" ? "fork" : "merge"} 跨 ${dx / LANE} 欄 / ${dy / ROW} 列` });
+    if (t.k > 0 && runInto.has(t.p) && dx > 0) inst.reverse.push({ ...span([t.c, t.p], [sc, sp]), sev: 1, note: `${R.rows[t.c].id} 把 ${R.rows[t.p].id} 合進來` });
+  });
+  for (const g of fanOf.values()) {
+    if (g.length < 2) continue;
+    inst.fanin.push({ ...span(g.flatMap((t) => [t.c, t.p]), g.flatMap((t) => [slotOf(t.c), slotOf(t.p)])), sev: g.length, note: `${g.length} 條 fork 進 ${R.rows[g[0].p].id}` });
+  }
+  // 交叉：以 12 列為窗聚成一群
+  const crossRows = [...base.crossings].sort((a, b) => a.y - b.y);
+  for (let a = 0; a < crossRows.length;) {
+    const r0 = Math.floor(crossRows[a].y / ROW);
+    let b = a;
+    while (b < crossRows.length && Math.floor(crossRows[b].y / ROW) < r0 + 12) b++;
+    const group = crossRows.slice(a, b);
+    inst.cross.push({ ...span(group.flatMap((c) => [Math.floor(c.y / ROW)]), group.map((c) => (c.x - X0) / LANE)), sev: group.length, note: `${group.length} 個交叉點` });
+    a = b;
+  }
+  const seenGraze = new Set();
+  for (const g of base.grazes) {
+    if (seenGraze.has(g.s.i)) continue;
+    seenGraze.add(g.s.i);
+    const t = g.s.t;
+    inst.graze.push({ ...span([t.c, t.p < 0 ? n - 1 : t.p, g.r], [slotOf(t.c), t.p < 0 ? R.lines[t.line].slot : slotOf(t.p)]), g: g.r, sev: 9 - Math.abs(g.y - Y(g.r)), note: `斜線距 ${R.rows[g.r].id} 站心 ${Math.abs(g.y - Y(g.r)).toFixed(1)}px` });
+  }
+  for (const list of Object.values(inst)) list.sort((p, q) => q.sev - p.sev || p.r0 - q.r0);
+  // 每個實例要看的列窗（捲動與截圖都照它）：同側進站看 parent 那站（線在那裡匯合），交叉取群的前 12 列，擦站看被擦的站
+  const windowOf = (k, f) => {
+    if (k === "fanin") return [Math.max(f.r0, f.r1 - 10) - 1, f.r1 + 3];
+    if (k === "cross") return [f.r0 - 1, Math.min(f.r1, f.r0 + 12) + 1];
+    if (k === "graze") return [f.g - 5, f.g + 5];
+    return [f.r0 - 3, f.r1 + 3];
+  };
+  for (const [k, list] of Object.entries(inst)) for (const f of list) [f.c0, f.c1] = windowOf(k, f).map((r) => Math.min(n - 1, Math.max(0, r)));
+  const list = inst[caseName];
+  const idx = Math.min(Math.max(0, Number(Q.get("i") || 0)), Math.max(0, list.length - 1));
+  const focus = list[idx] || null;
+
+  /* ---------- 畫圖：站與基準 drawMap 相同 ---------- */
+  const graphEl = document.getElementById("graph"), lanesSvg = document.getElementById("lanes"), rowsEl = document.getElementById("rows");
+  const scroller = document.getElementById("graph-scroll");
+  function hexPoints(cx, cy, r) {
+    const p = [];
+    for (let k = 0; k < 6; k++) { const a = (Math.PI / 3) * k - Math.PI / 2; p.push(`${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`); }
+    return p.join(" ");
+  }
+  const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+  function subjectHTML(s) {
+    const merge = s.match(/^Merge pull request (#\d+) from (\S+)$/);
+    if (merge) return `Merge pull request <span class="prn">${merge[1]}</span> from <span class="from">${esc(merge[2])}</span>`;
+    const cc = s.match(/^([a-z]+(?:\([^)]*\))?!?:)\s(.*)$/);
+    if (cc) return `<span class="pfx">${esc(cc[1])}</span> ${esc(cc[2])}`;
+    return esc(s);
+  }
+
+  function draw() {
+    const W = X(R.slots) + 8;
+    scroller.style.setProperty("--gutter", `${X(Math.max(0, R.slots - 1)) + 24}px`);
+    lanesSvg.setAttribute("width", W); lanesSvg.setAttribute("height", H); lanesSvg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    const routed = routeAll(opt);
+    const edges = R.tracks.map((t, i) => ({ t, ...routed[i], color: colorOf(t.line) }));
+    // 同側進站：遠欄先畫、近欄最後畫（共用的那段看得到近欄的顏色）；現行 = 資料順序
+    const reach = (e) => (e.t.p < 0 ? 0 : Math.abs(slotOf(e.t.c) - slotOf(e.t.p)));
+    const runs = edges.filter((e) => !e.link);
+    const links = edges.filter((e) => e.link);
+    if (opt.fanin !== "base") links.sort((a, b) => reach(b) - reach(a));
+    const casing = (e) => `<path d="${d(e.pts)}" fill="none" stroke="var(--sheet)" stroke-width="${LW + 3.5}" stroke-linejoin="round"/>`;
+    const line = (e) => `<path d="${d(e.pts)}" fill="none" stroke="${e.color}" stroke-width="${LW}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    let tracks;
+    if (opt.cross === "holes") {
+      // 基準 drawMap 的畫法（2026-10-08）：套管、線各一組；線照軌道順序，連接線佔的位置改成依跨距由遠到近；
+      // 交叉處在下層那條的直段挖一個套管寬的洞（mask），上層的線不重畫
+      const span = (e) => Math.abs(e.pts[e.pts.length - 1][0] - e.pts[0][0]);
+      const queue = edges.filter((e) => e.link).sort((a, b) => span(b) - span(a));
+      const order = edges.map((e) => (e.link ? queue.shift() : e));
+      const straight = [];
+      order.forEach((e, n) => e.pts.forEach((b, s) => { const a = e.pts[s - 1]; if (a && a[0] === b[0]) straight.push({ n, x: a[0], top: Math.min(a[1], b[1]), bottom: Math.max(a[1], b[1]) }); }));
+      const holes = new Map();
+      order.forEach((e, n) => e.pts.forEach((b, s) => {
+        const a = e.pts[s - 1];
+        if (!a || a[0] === b[0]) return;
+        const lo = Math.min(a[0], b[0]), hi = Math.max(a[0], b[0]), at = (x) => a[1] + ((x - a[0]) / (b[0] - a[0])) * (b[1] - a[1]);
+        for (const v of straight) {
+          if (v.n === n || v.x <= lo || v.x >= hi || at(v.x) <= v.top || at(v.x) >= v.bottom) continue;
+          const x0 = Math.max(lo, v.x - 6), x1 = Math.min(hi, v.x + 6);
+          holes.set(v.n, `${holes.get(v.n) || ""}<path d="M${x0} ${at(x0)}L${x1} ${at(x1)}" stroke="#000" stroke-width="${LW + 3.5}"/>`);
+        }
+      }));
+      const masks = [...holes].map(([n, cut]) => `<mask id="hole-${n}" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="#fff"/>${cut}</mask>`).join("");
+      const holed = (e, n) => line(e).replace("/>", holes.has(n) ? ` mask="url(#hole-${n})"/>` : "/>");
+      tracks = `${masks ? `<defs>${masks}</defs>` : ""}<g>${order.map(casing).join("")}</g><g>${order.map(holed).join("")}</g>`;
+    } else if (opt.cross === "none") {
+      const ordered = opt.fanin === "base" ? edges : [...runs, ...links];
+      tracks = `<g>${ordered.map(casing).join("")}</g><g>${ordered.map(line).join("")}</g>`;
+    } else {
+      // 逐條「套管 + 線」：後畫的蓋過先畫的，交叉處先畫的那條被套管切出縫（橋）
+      const seq = opt.cross === "runs" ? [...links, ...runs] : [...runs, ...links];
+      tracks = seq.map((e) => casing(e) + line(e)).join("");
+    }
+    if (R.truncated) {
+      const from = Y(n - 1) + 11;
+      tracks = `<defs><linearGradient id="run-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>`
+        + `<mask id="run-on" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect width="${W}" height="${from}" fill="#fff"/><rect y="${from}" width="${W}" height="${H - from}" fill="url(#run-g)"/></mask></defs>`
+        + `<g mask="url(#run-on)">${tracks}</g>`;
+    }
+    // 膠囊轉乘站：同側 fork 群組的 parent 站拉長到最遠那條 fork 的欄
+    const capsules = new Map();
+    if (opt.fanin === "capsule") {
+      for (const g of fanOf.values()) {
+        if (g.length < 2) continue;
+        const p = g[0].p, xs = g.map((t) => X(slotOf(t.c))).concat(X(slotOf(p)));
+        const prev = capsules.get(p) || [X(slotOf(p)), X(slotOf(p))];
+        capsules.set(p, [Math.min(prev[0], ...xs), Math.max(prev[1], ...xs)]);
+      }
+    }
+    let stations = "";
+    R.rows.forEach((row, i) => {
+      const cx = X(slotOf(i)), cy = Y(i), color = colorOf(row.line);
+      if (row.head) {
+        stations += `<circle cx="${cx}" cy="${cy}" r="10.5" fill="var(--sheet)" opacity="0.92"/>`;
+        stations += `<polygon points="${hexPoints(cx, cy, 8.4)}" fill="var(--gold-leaf)" stroke="var(--flake-edge)" stroke-width="1.3" stroke-linejoin="round"/>`;
+        stations += `<polygon points="${cx},${cy - 8.4} ${cx},${cy} ${(cx + 7.27).toFixed(2)},${(cy - 4.2).toFixed(2)}" fill="oklch(1 0 0 / 0.5)"/>`;
+      } else if (capsules.has(i)) {
+        const [a, b] = capsules.get(i);
+        stations += `<rect x="${a - 5.6}" y="${cy - 5.6}" width="${b - a + 11.2}" height="11.2" rx="5.6" fill="var(--sheet-hi)" stroke="var(--l-trunk)" stroke-width="2.2"/>`;
+      } else if (row.role === "interchange") {
+        stations += `<circle cx="${cx}" cy="${cy}" r="5.6" fill="var(--sheet-hi)" stroke="var(--l-trunk)" stroke-width="2.2"/>`;
+      } else if (row.role === "terminus" || row.root) {
+        stations += `<path d="M${cx - 6.5} ${cy}H${cx + 6.5}" stroke="${color}" stroke-width="${LW}" stroke-linecap="round"/>`;
+      } else {
+        stations += `<path d="M${cx} ${cy}H${cx + 7.5}" stroke="${color}" stroke-width="${LW}" stroke-linecap="round"/>`;
+      }
+    });
+    let mark = "";
+    if (focus && showMark) {
+      const x0 = X(focus.s0) - 14, x1 = X(focus.s1) + 14, y0 = Y(focus.r0) - ROW / 2, y1 = Y(focus.r1) + ROW / 2;
+      mark = `<rect class="lab-mark-bg" x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="6"/><rect class="lab-mark" x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="6"/>`;
+    }
+    lanesSvg.innerHTML = `<g>${mark}</g>${tracks}<g>${stations}</g>`;
+    rowsEl.innerHTML = R.rows.map((row, i) => `<div class="row${(parentsOf.get(i) || 0) > 1 ? " merge" : ""}" role="option" data-row="${i}" aria-selected="false">
+        <span class="hash">${row.id}</span>
+        <span class="subject">${subjectHTML(row.s)}</span>
+        <span class="refs">${row.refs.slice(0, 3).map((r) => `<span class="ref ${r.k === "head" ? "local" : r.k}"><span>${esc(r.n)}</span></span>`).join("")}${row.refs.length > 3 ? `<span class="ref remote"><span>+${row.refs.length - 3}</span></span>` : ""}</span>
+      </div>`).join("");
+  }
+
+  /* ---------- 控制列 ---------- */
+  function link(changes) {
+    const q = new URLSearchParams(location.search);
+    for (const [k, v] of Object.entries(changes)) q.set(k, v);
+    return `?${q.toString()}`;
+  }
+  const sel = (name, value, options) => `<select data-k="${name}">${Object.entries(options).map(([v, label]) => `<option value="${esc(v)}"${v === String(value) ? " selected" : ""}>${esc(label)}</option>`).join("")}</select>`;
+  const now = measure(opt);
+  const repoOpts = Object.fromEntries(Object.keys(window.LAB.repos).map((r) => [r, `${r}（${window.LAB.repos[r].rows.length} 列）`]));
+  const caseOpts = Object.fromEntries(Object.entries(CASES).map(([k, v]) => [k, `${v}（${inst[k].length}）`]));
+  const instOpts = Object.fromEntries(list.map((f, i) => [i, `${i + 1}/${list.length} · ${f.note} · 第 ${f.r0} 列`]));
+  const bar = document.getElementById("bar");
+  bar.innerHTML = `<label><b>repo</b>${sel("repo", repoName, repoOpts)}</label>`
+    + `<label><b>實例</b>${sel("case", caseName, caseOpts)}${list.length ? sel("i", idx, instOpts) : "<span class=m>（這個 repo 沒有）</span>"}</label>`
+    + `<span class="sep"></span>`
+    + Object.entries(RULES).map(([k, [label, o]]) => `<label>${label}${sel(k, opt[k], o)}</label>`).join("")
+    + `<span class="sep"></span>`
+    + `<label>主題${sel("theme", root.dataset.theme, { light: "白雲母", dark: "黒雲母" })}</label>`
+    + `<label>框${sel("mark", showMark ? "1" : "0", { 1: "顯示", 0: "隱藏" })}</label>`
+    + `<span class="m">作用中規則：往回折 <b>${now.back.size}</b> · 不同線重疊 <b>${now.overlaps.length}</b> · 交叉 <b>${now.crossings.length}</b> · 擦站 <b>${now.grazes.length}</b>${opt.fanin === "capsule" ? ` · 膠囊蓋住的直通線 <b>${now.hidden}</b>` : ""}（現行 ${base.back.size} / ${base.overlaps.length} / ${base.crossings.length} / ${base.grazes.length}）</span>`;
+  bar.addEventListener("change", (e) => {
+    const k = e.target.dataset.k;
+    if (!k) return;
+    const changes = { [k]: e.target.value };
+    if (k === "repo" || k === "case") changes.i = 0;
+    location.search = link(changes);
+  });
+
+  /* ---------- 開場：畫完捲到實例（就緒給截圖工具） ---------- */
+  draw();
+  if (focus) scroller.scrollTop = Math.max(0, 6 + (focus.c0 - 1) * ROW);
+  // 截圖用的框（視窗座標）：實例的列窗，左起 graph 區、右到實例最右欄再帶一段訊息欄
+  const box = () => {
+    if (!focus) return null;
+    const g = lanesSvg.getBoundingClientRect(), s = scroller.getBoundingClientRect();
+    return { x0: s.left, y0: Math.max(s.top, g.top + focus.c0 * ROW), x1: Math.min(s.right, Math.max(g.left + X(focus.s1) + 240, s.left + 560)), y1: Math.min(s.bottom, g.top + (focus.c1 + 1) * ROW) };
+  };
+  window.__lab = { opt, repo: repoName, case: caseName, i: idx, count: list.length, focus, box, measure: { back: now.back.size, overlaps: now.overlaps.length, crossings: now.crossings.length, grazes: now.grazes.length, hidden: now.hidden }, counts: Object.fromEntries(Object.entries(inst).map(([k, v]) => [k, v.length])),
+    lists: Object.fromEntries(Object.entries(inst).map(([k, v]) => [k, v.map((f) => `${f.note} @${f.r0}`)])) };
+  root.dataset.ready = "1";
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,2692 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kira · v8 雲母路線圖 · 系統字基準（Kirazuri Line Map, system fonts）</title>
+<script>
+  // theme before first paint: ?theme= wins, then the remembered choice
+  (() => {
+    const q = new URLSearchParams(location.search), d = document.documentElement.dataset;
+    let t = q.get("theme");
+    if (!t) { try { t = localStorage.getItem("kira-v8-theme"); } catch (e) {} }
+    d.theme = t === "dark" ? "dark" : "light";
+    // ?chrome=0 hides the drawn traffic lights (the app's are native); ?chrome=full is macOS full screen
+    const c = q.get("chrome");
+    d.chrome = c === "0" ? "off" : c === "full" ? "full" : "on";
+  })();
+</script>
+<style>
+  /* ------------------------------------------------------------------
+     v8 雲母路線圖 Kirazuri Line Map — remix of v6 × v7, two grounds
+     Skeleton from v7: branches are lines (pigment + letter), commits are
+     stations, merges are interchanges, HEAD is "you are here", the header
+     is a station sign carrying your line.
+     Skin from v6: mica ground, floating sheets,
+     system fonts (SF Pro · SF Mono · 蘋方 — nothing bundled), gold leaf,
+     mineral pigments.
+
+     Light = 白雲母摺 white-mica ground, the trunk drawn in 墨 sumi ink.
+     Dark  = 黒雲母摺 black-mica ground (Sharaku's actor prints), the trunk
+             drawn in 胡粉 gofun shell-white; pigments lifted to read on
+             black; depth by lightness instead of shadow; weights drop 50.
+
+     Fingerprint (light): 色溫 38 · 明度 93 · 飽和 35 · 密度 57 · 重量 42 · 邊界 62
+                          質感 35 · 有機度 28 · 時態 50 · 動態 28 · 態度 35 · 距離 45 · 能量 35
+     Fingerprint (dark):  明度 93 → 22, 重量 42 → 38, everything else held.
+     All pairs computed (OKLCH → sRGB → WCAG) in both themes: primary ≥ 7:1,
+     secondary ≥ 4.5:1, lines ≥ 3:1 on every row state, roundel letters ≥ 4.5:1.
+
+     v8-sys (2026-10-04) — the golden reference for the app port. Tokens,
+     layout and graph are v8's; only what the app can really ship changed:
+     system fonts (no font files bundled; ui-monospace must lead the mono
+     stack, "SF Mono" by name does not resolve), an overlay title bar with
+     the traffic lights inside the station sign, and transform transitions
+     gated on reduced motion. Colours are untouched, so v8's contrast
+     figures still hold. Judge it in Safari: the app renders in WKWebView.
+     2026-10-04 decisions: disabled states fade (opacity rides the 110ms
+     hover transition, so a background refresh no longer flashes the
+     toolbar); no pointer-lit light band — the mica ground stays still;
+     the push flake moves per progress event under a CSS transition.
+     Phase 0b: the accent follows the line you are on — click a local branch
+     to check it out, or open with ?on=main.
+     2026-10-05 review: status badges (M/A/D) carry a 1px outline in their
+     own colour — the tint alone sat at 1.07–1.09:1 on the sheet, so only
+     the letter showed; the outline reads at ≥ 6:1 in both themes.
+     Phase 0b shell (2026-10-05): the station sign's other states —
+     signed out, behind origin, never published, detached, no remote, a
+     failed op's notice, macOS full screen. A failed op's notice takes the
+     sign's place until dismissed or the next op starts; you sign out from
+     a small menu on your account; Push rests disabled with nothing to
+     send. Open them with ?state=<name>[,<name>] (behind · diverged ·
+     no-upstream · no-remote · detached · signed-out · connecting ·
+     account-menu · error-push · error-pull · error-refresh · error-open ·
+     error-auth · error-signout) and ?chrome=full; ?fail=<op> makes the
+     next push / pull / refresh / connect / signout fail. Disabled buttons
+     say why in their title.
+     Phase 0b P5 (2026-10-10): the sidebar, the right pane and the diff in
+     their other states, said in five ways (an empty state in the area, a
+     line in a list, a strip at the top of an area, a cell in place of a
+     file's hunks, a skeleton). A press that fails says so in the sign; an
+     area that cannot be read says so in the area, with Retry. Open them
+     with ?state= (opening · pruned · conflict · many-changes ·
+     changes-error · prs-loading · prs-empty · prs-rate · prs-error ·
+     pr-diff-loading · pr-diff-error · pr-diff-empty · diff-empty ·
+     diff-error · diff-limits · diff-many · error-checkout · error-commit)
+     and ?tab=prs; ?fail= also takes checkout, stage, commit and status
+     (the status read after a refresh). Phase 5 (2026-10-11): ?state=diff-bidi,
+     a diff whose bidirectional controls are named instead of obeyed.
+     ------------------------------------------------------------------ */
+  :root {
+    /* 白雲母摺 — white mica */
+    --ground: oklch(0.936 0.011 225);
+    --sheet: oklch(0.976 0.005 225);
+    --sheet-hi: oklch(0.988 0.003 225);
+    --code-bg: oklch(0.988 0.003 225);
+    --input-bg: oklch(0.988 0.003 225);
+    --band: oklch(0.942 0.010 222);
+    --hover: oklch(0.938 0.012 220);
+    --hover-ghost: oklch(0.93 0.012 222 / 0.7);
+    --selected: oklch(0.930 0.026 178);
+    --hairline: oklch(0.875 0.010 225);
+    --hairline-soft: oklch(0.905 0.008 225);
+    --btn-border: oklch(0.82 0.012 225);
+    --btn-hover-bg: oklch(0.996 0.002 225);
+    --control: oklch(0.600 0.015 225);
+
+    --ink: oklch(0.255 0.028 238);       /* 13.4:1 on sheet */
+    --ink-2: oklch(0.405 0.022 236);
+    --ink-3: oklch(0.475 0.018 234);     /* 5.5:1 on selected */
+
+    --gold-leaf: oklch(0.780 0.120 85);
+    --gold-ink: oklch(0.470 0.085 78);
+    --on-gold: oklch(0.255 0.028 238);
+    --flake-edge: oklch(0.255 0.028 238);
+    --primary: oklch(0.315 0.045 226);
+    --primary-hover: oklch(0.255 0.040 228);
+    --on-primary: oklch(0.988 0.003 225);
+
+    --danger: oklch(0.500 0.150 28);
+    --danger-bg: oklch(0.950 0.024 28);
+    --success: oklch(0.450 0.095 162);
+    --success-bg: oklch(0.948 0.032 165);
+    --warning: oklch(0.480 0.095 72);
+    --warning-bg: oklch(0.950 0.040 85);
+    --info: oklch(0.465 0.090 245);
+
+    /* lines — the trunk is 墨 sumi; pigments carry a pearl letter at ≥ 5.2:1 */
+    --l-trunk: oklch(0.300 0.030 240);
+    --l-rokusho: oklch(0.505 0.090 172);
+    --l-gunjo: oklch(0.470 0.135 264);
+    --l-shinsha: oklch(0.525 0.150 33);
+    --l-murasaki: oklch(0.480 0.105 315);
+    --l-odo: oklch(0.530 0.090 72);
+    --rd-fg: oklch(0.988 0.003 225);
+    --rd-highlight: inset 0 1px 0 oklch(1 0 0 / 0.22);
+    --head-ring: oklch(0.988 0.003 225);
+    /* the interface wears the colour of the line you are on */
+    --line: var(--l-rokusho);
+    --line-ink: oklch(0.450 0.080 175);  /* text-safe: 6.7:1 on sheet */
+    --focus-glow: oklch(0.505 0.090 172 / 0.2);
+    --selection: oklch(0.87 0.05 175);
+
+    --syn-kw: oklch(0.440 0.130 264);
+    --syn-str: oklch(0.440 0.085 168);
+    --syn-num: oklch(0.480 0.140 33);
+    --syn-type: oklch(0.440 0.100 315);
+    --syn-fn: oklch(0.440 0.078 218);
+    --syn-com: oklch(0.500 0.016 234);
+
+    --sheet-shadow:
+      0 0 0 1px var(--hairline-soft),
+      inset 0 1px 0 oklch(1 0 0 / 0.85),
+      0 1px 1px oklch(0.35 0.03 230 / 0.05),
+      0 12px 28px -16px oklch(0.35 0.04 230 / 0.28);
+    --btn-shadow: inset 0 1px 0 oklch(1 0 0 / 0.9), 0 1px 1px oklch(0.35 0.03 230 / 0.06);
+    --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), inset 0 -1px 0 oklch(0.86 0.03 178);
+    --tip-shadow: 0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0), 0 14px 34px -14px oklch(0.30 0.04 230 / 0.40);
+    --shimmer: oklch(1 0 0 / 0.7);
+    --fwd: 0;   /* weight delta: light text on dark reads heavier */
+
+    --type-ui: system-ui, "PingFang TC", sans-serif;
+    --type-mono: ui-monospace, Menlo, "PingFang TC", monospace;
+    --curve-settle: cubic-bezier(0.25, 1, 0.5, 1);
+    --t-hover: 110ms;
+    --t-state: 220ms;
+    --r-sheet: 7px;
+    --r-ctl: 4px;
+    --row: 34px;
+    --chrome-inset: 83px;  /* traffic lights 17→77px (measured, macOS 27) + 18px clearance, minus the 12px app gutter */
+    color-scheme: light;
+  }
+
+  :root[data-theme="dark"] {
+    /* 黒雲母摺 — black mica; sheets sit at the lightness of #1A1A2A, in Kira's blue */
+    --ground: oklch(0.188 0.016 240);
+    --sheet: oklch(0.226 0.017 238);
+    --sheet-hi: oklch(0.252 0.017 236);
+    --code-bg: oklch(0.208 0.016 238);
+    --input-bg: oklch(0.208 0.016 238);
+    --band: oklch(0.268 0.017 236);
+    --hover: oklch(0.274 0.019 232);
+    --hover-ghost: oklch(0.30 0.02 232 / 0.6);
+    --selected: oklch(0.292 0.036 178);
+    --hairline: oklch(0.350 0.015 236);
+    --hairline-soft: oklch(0.300 0.015 236);
+    --btn-border: oklch(0.380 0.016 236);
+    --btn-hover-bg: oklch(0.290 0.018 234);
+    --control: oklch(0.580 0.016 236);
+
+    --ink: oklch(0.930 0.010 230);       /* 13.9:1 on sheet */
+    --ink-2: oklch(0.810 0.014 232);
+    --ink-3: oklch(0.715 0.016 234);     /* 6.8:1 on sheet, ≥ 4.5 on selected */
+
+    --gold-leaf: oklch(0.800 0.120 85);
+    --gold-ink: oklch(0.820 0.100 82);
+    --on-gold: oklch(0.188 0.016 240);
+    --flake-edge: oklch(0.420 0.070 78);
+    --primary: oklch(0.880 0.020 215);
+    --primary-hover: oklch(0.940 0.015 215);
+    --on-primary: oklch(0.188 0.016 240);
+
+    --danger: oklch(0.740 0.130 28);
+    --danger-bg: oklch(0.300 0.060 28);
+    --success: oklch(0.770 0.110 160);
+    --success-bg: oklch(0.290 0.050 165);
+    --warning: oklch(0.810 0.100 80);
+    --warning-bg: oklch(0.310 0.050 80);
+    --info: oklch(0.770 0.085 245);
+
+    /* the trunk turns 胡粉 gofun; pigments lifted, letters go dark */
+    --l-trunk: oklch(0.880 0.012 88);
+    --l-rokusho: oklch(0.745 0.100 172);
+    --l-gunjo: oklch(0.715 0.115 266);
+    --l-shinsha: oklch(0.725 0.130 36);
+    --l-murasaki: oklch(0.730 0.100 318);
+    --l-odo: oklch(0.790 0.100 80);
+    --rd-fg: oklch(0.188 0.016 240);
+    --rd-highlight: inset 0 1px 0 oklch(1 0 0 / 0.3);
+    --head-ring: oklch(0.880 0.020 215);
+    --line-ink: oklch(0.790 0.095 172);
+    --focus-glow: oklch(0.745 0.100 172 / 0.25);
+    --selection: oklch(0.40 0.06 175);
+
+    --syn-kw: oklch(0.780 0.100 272);
+    --syn-str: oklch(0.790 0.090 165);
+    --syn-num: oklch(0.790 0.105 48);
+    --syn-type: oklch(0.790 0.085 322);
+    --syn-fn: oklch(0.810 0.070 215);
+    --syn-com: oklch(0.690 0.016 234);
+
+    /* depth by lightness: a hairline and a whisper of top light, shadows only to separate from the ground */
+    --sheet-shadow:
+      0 0 0 1px var(--hairline-soft),
+      inset 0 1px 0 oklch(1 0 0 / 0.045),
+      0 10px 26px -16px oklch(0.05 0.01 240 / 0.7);
+    --btn-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05);
+    --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 -1px 0 oklch(0.36 0.04 178);
+    --tip-shadow: 0 0 0 1px var(--hairline), 0 16px 36px -14px oklch(0.05 0.01 240 / 0.75);
+    --shimmer: oklch(1 0 0 / 0.06);
+    --fwd: -50;
+    color-scheme: dark;
+  }
+
+  /* accent follows your line: the line you are on tints focus, tabs, selection and the
+     station sign. Values from tools/accent_variants.py (rokusho = v8's originals;
+     every pair contrast-checked, every line ≥ 3:1 across every selected tint). */
+  :root[data-line="trunk"] { --line: var(--l-trunk); --line-ink: oklch(0.405 0.022 236); --focus-glow: oklch(0.300 0.030 240 / 0.2); --selection: oklch(0.870 0.020 240); --selected: oklch(0.915 0.012 240); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), inset 0 -1px 0 oklch(0.840 0.014 240); }
+  :root[data-line="rokusho"] { --line: var(--l-rokusho); --line-ink: oklch(0.450 0.080 175); --focus-glow: oklch(0.505 0.090 172 / 0.2); --selection: oklch(0.870 0.050 175); --selected: oklch(0.930 0.026 178); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), inset 0 -1px 0 oklch(0.860 0.030 178); }
+  :root[data-line="gunjo"] { --line: var(--l-gunjo); --line-ink: oklch(0.450 0.120 267); --focus-glow: oklch(0.470 0.135 264 / 0.2); --selection: oklch(0.870 0.050 267); --selected: oklch(0.930 0.026 270); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), inset 0 -1px 0 oklch(0.860 0.030 270); }
+  :root[data-line="shinsha"] { --line: var(--l-shinsha); --line-ink: oklch(0.450 0.133 36); --focus-glow: oklch(0.525 0.150 33 / 0.2); --selection: oklch(0.870 0.050 36); --selected: oklch(0.930 0.026 39); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), inset 0 -1px 0 oklch(0.860 0.030 39); }
+  :root[data-line="murasaki"] { --line: var(--l-murasaki); --line-ink: oklch(0.450 0.093 318); --focus-glow: oklch(0.480 0.105 315 / 0.2); --selection: oklch(0.870 0.050 318); --selected: oklch(0.930 0.026 321); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), inset 0 -1px 0 oklch(0.860 0.030 321); }
+  :root[data-line="odo"] { --line: var(--l-odo); --line-ink: oklch(0.450 0.080 75); --focus-glow: oklch(0.530 0.090 72 / 0.2); --selection: oklch(0.870 0.050 75); --selected: oklch(0.930 0.026 78); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), inset 0 -1px 0 oklch(0.860 0.030 78); }
+  :root[data-theme="dark"][data-line="trunk"] { --line: var(--l-trunk); --line-ink: oklch(0.810 0.014 232); --focus-glow: oklch(0.880 0.012 88 / 0.25); --selection: oklch(0.400 0.020 236); --selected: oklch(0.305 0.016 236); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 -1px 0 oklch(0.370 0.016 236); }
+  :root[data-theme="dark"][data-line="rokusho"] { --line: var(--l-rokusho); --line-ink: oklch(0.790 0.095 172); --focus-glow: oklch(0.745 0.100 172 / 0.25); --selection: oklch(0.400 0.060 175); --selected: oklch(0.292 0.036 178); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 -1px 0 oklch(0.360 0.040 178); }
+  :root[data-theme="dark"][data-line="gunjo"] { --line: var(--l-gunjo); --line-ink: oklch(0.790 0.105 266); --focus-glow: oklch(0.715 0.115 266 / 0.25); --selection: oklch(0.400 0.060 269); --selected: oklch(0.292 0.036 272); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 -1px 0 oklch(0.360 0.040 272); }
+  :root[data-theme="dark"][data-line="shinsha"] { --line: var(--l-shinsha); --line-ink: oklch(0.790 0.123 36); --focus-glow: oklch(0.725 0.130 36 / 0.25); --selection: oklch(0.400 0.060 39); --selected: oklch(0.292 0.036 42); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 -1px 0 oklch(0.360 0.040 42); }
+  :root[data-theme="dark"][data-line="murasaki"] { --line: var(--l-murasaki); --line-ink: oklch(0.790 0.095 318); --focus-glow: oklch(0.730 0.100 318 / 0.25); --selection: oklch(0.400 0.060 321); --selected: oklch(0.292 0.036 324); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 -1px 0 oklch(0.360 0.040 324); }
+  :root[data-theme="dark"][data-line="odo"] { --line: var(--l-odo); --line-ink: oklch(0.790 0.095 80); --focus-glow: oklch(0.790 0.100 80 / 0.25); --selection: oklch(0.400 0.060 83); --selected: oklch(0.292 0.036 86); --sel-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 -1px 0 oklch(0.360 0.040 86); }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: var(--type-ui);
+    font-size: 13.5px;
+    line-height: 1.45;
+    tab-size: 4;  /* spelled out: WebKit's default is 8, the app's preflight says 4 */
+    color: var(--ink);
+    background: var(--ground);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    /* no rubber band anywhere: every scroller below uses none too (a hunk, nested in the diff,
+       only across: see .hunk-body). contain only stops the scroll from chaining outward; the
+       list itself still bounces in WebKit and shows a blank band at its edge (2026-10-05) */
+    overscroll-behavior: none;
+  }
+  button, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  :focus-visible { outline: 2px solid var(--line); outline-offset: 2px; }
+  ::selection { background: var(--selection); }
+  * { scrollbar-width: thin; scrollbar-color: var(--hairline) transparent; }
+
+  /* theme switch: a cross-fade of snapshots — opacity only */
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 280ms; animation-timing-function: ease-out; }
+
+  /* ============================== MICA GROUND ============================== */
+  .ground {
+    position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+    background:
+      radial-gradient(55% 45% at 8% 0%, oklch(0.938 0.030 340 / 0.75), transparent 70%),
+      radial-gradient(50% 60% at 92% 6%, oklch(0.936 0.034 200 / 0.8), transparent 72%),
+      radial-gradient(70% 55% at 55% 104%, oklch(0.942 0.036 92 / 0.7), transparent 70%),
+      var(--ground);
+  }
+  .flecks {
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='w' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='1' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 18 0 0 0 -11.6'/%3E%3C/filter%3E%3Cfilter id='s' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.3' numOctaves='1' seed='19'/%3E%3CfeColorMatrix values='0 0 0 0 .52 0 0 0 0 .58 0 0 0 0 .68 18 0 0 0 -12.2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23w)'/%3E%3Crect width='240' height='240' filter='url(%23s)' opacity='.55'/%3E%3C/svg%3E");
+  }
+  /* black mica: an oil-slick sheen on near-black, fewer and quieter specks */
+  :root[data-theme="dark"] .ground {
+    background:
+      radial-gradient(55% 45% at 8% 0%, oklch(0.222 0.032 320 / 0.8), transparent 70%),
+      radial-gradient(50% 60% at 92% 6%, oklch(0.222 0.034 200 / 0.85), transparent 72%),
+      radial-gradient(70% 55% at 55% 104%, oklch(0.222 0.030 85 / 0.7), transparent 70%),
+      var(--ground);
+  }
+  /* white specks that whisper on white mica shout on black — a sparser field, not just a dimmer one */
+  :root[data-theme="dark"] .flecks {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='w' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='1' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 .86 0 0 0 0 .9 0 0 0 0 .96 18 0 0 0 -13.5'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23w)'/%3E%3C/svg%3E");
+    opacity: 0.5;
+  }
+
+  /* ============================== SHELL ============================== */
+  .app {
+    position: relative; z-index: 1;
+    height: 100vh;
+    display: grid;
+    grid-template-columns: 236px minmax(0, 65fr) minmax(0, 35fr);
+    grid-template-rows: 60px minmax(0, 1fr) 40vh;
+    grid-template-areas:
+      "top  top   top"
+      "side graph pane"
+      "side diff  diff";
+    gap: 10px;
+    padding: 0 12px 12px;
+  }
+  .sheet {
+    background: var(--sheet);
+    border-radius: var(--r-sheet);
+    box-shadow: var(--sheet-shadow);
+    min-height: 0; min-width: 0;
+    overflow: hidden;
+  }
+
+  /* overlay title bar: macOS draws the traffic lights over the station sign.
+     These copy the real ones as measured with trafficLightPosition {x:17, y:29}
+     (14px, 23px apart; macOS sets the size and spacing, so remeasure after an OS update). */
+  .traffic { position: fixed; z-index: 30; left: 17px; top: 20px; display: flex; gap: 9px; pointer-events: none; }
+  .traffic i { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 0.5px oklch(0 0 0 / 0.2); }
+  .traffic i:nth-child(1) { background: #ff5f57; }
+  .traffic i:nth-child(2) { background: #febc2e; }
+  .traffic i:nth-child(3) { background: #28c840; }
+  :root[data-chrome="off"] .traffic { display: none; }
+  /* full screen: macOS takes the traffic lights away, so the sign takes their room back —
+     the brand lines up with the start of your line. A jump, not a slide: padding is layout */
+  :root[data-chrome="full"] { --chrome-inset: 4px; }
+  :root[data-chrome="full"] .traffic { display: none; }
+
+  /* line bullets — the same mark names a branch everywhere */
+  .rd {
+    width: 18px; height: 18px; border-radius: 50%; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--l); color: var(--rd-fg);
+    font-family: var(--type-ui); font-size: 12px; font-weight: calc(680 + var(--fwd)); line-height: 1;
+    box-shadow: var(--rd-highlight);
+  }
+  .rd.hollow { background: var(--sheet-hi); color: var(--l); box-shadow: inset 0 0 0 2px var(--l); }
+  .rd.lg { width: 20px; height: 20px; }
+
+  /* ============================== TOP BAR — a station sign on mica ============================== */
+  .topbar { grid-area: top; position: relative; display: flex; align-items: center; gap: 16px; padding: 0 4px 6px var(--chrome-inset); min-width: 0; }
+  .your-line { position: absolute; left: 4px; right: 4px; bottom: 2px; height: 3px; border-radius: 2px; background: var(--line); }
+  .carriage { position: absolute; left: 0; top: 50%; width: 18px; height: 18px; margin-top: -9px; opacity: 0; transform: translateX(0); transition: opacity var(--t-state) ease-out; }
+  .carriage.run { opacity: 1; }
+  .brand { display: flex; align-items: center; gap: 8px; font-size: 19px; font-weight: calc(640 + var(--fwd)); letter-spacing: 0.005em; }
+  .flake { width: 18px; height: 18px; flex: none; }
+  .vr { width: 1px; height: 20px; background: var(--hairline); flex: none; }
+  .station { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+  .st-name { font-size: 14.5px; font-weight: calc(600 + var(--fwd)); }
+  .st-path { font-family: var(--type-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .youare { display: flex; align-items: center; gap: 7px; white-space: nowrap; min-width: 0; }
+  .youare .lbl { font-size: 12.5px; color: var(--ink-3); }
+  .youare .bn { font-size: 14px; font-weight: calc(640 + var(--fwd)); overflow: hidden; text-overflow: ellipsis; }
+  .youare[hidden] { display: none; }
+  .youare .note { font-size: 12.5px; color: var(--ink-3); }
+  .youare .note::before { content: "·"; margin-right: 7px; }
+  .tools { margin-left: auto; display: flex; align-items: center; gap: 6px; flex: none; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 30px; padding: 0 12px;
+    border: 1px solid var(--btn-border); border-radius: var(--r-ctl);
+    background: var(--sheet-hi); box-shadow: var(--btn-shadow);
+    font-size: 13px; font-weight: calc(550 + var(--fwd)); white-space: nowrap;
+    transition: background-color var(--t-hover) ease-out, border-color var(--t-hover) ease-out, color var(--t-hover) ease-out, opacity var(--t-hover) ease-out;
+  }
+  .btn svg { width: 14px; height: 14px; flex: none; }
+  .btn:hover { background: var(--btn-hover-bg); border-color: var(--control); }
+  .btn:active { transform: translateY(0.5px); }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .btn[disabled]:hover { background: var(--sheet-hi); border-color: var(--btn-border); }
+  .btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--ink-2); }
+  .btn.ghost:hover { background: var(--hover-ghost); color: var(--ink); }
+  .btn.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+  .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+  .btn.primary[disabled]:hover { background: var(--primary); border-color: var(--primary); }
+  .btn .count { font-family: var(--type-mono); font-size: 12px; font-weight: 600; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; background: var(--gold-leaf); color: var(--on-gold); }
+  #refresh { min-width: 128px; }  /* "Refreshing…" is 125px in SF Pro 13px/550 (measured in WKWebView) */
+  #push { min-width: 108px; }  /* widest state "100%" + count is 106px */
+  .spin svg { animation: none; }
+  @media (prefers-reduced-motion: no-preference) { .spin svg { animation: kl-spin 900ms linear infinite; } }
+  @keyframes kl-spin { to { transform: rotate(360deg); } }
+  .icon-btn { width: 30px; height: 30px; padding: 0; border: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-ctl); color: var(--ink-2); transition: background-color var(--t-hover) ease-out, color var(--t-hover) ease-out; }
+  .icon-btn:hover { background: var(--hover-ghost); color: var(--ink); }
+  .icon-btn svg { width: 16px; height: 16px; }
+  :root[data-theme="dark"] #theme svg { transform: scaleX(-1); }
+  .account { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 8px 0 4px; border: 0; background: transparent; border-radius: var(--r-ctl); color: var(--ink-2); font-size: 13px; font-weight: calc(550 + var(--fwd)); transition: background-color var(--t-hover) ease-out, color var(--t-hover) ease-out, opacity var(--t-hover) ease-out; }
+  .account:hover { background: var(--hover-ghost); color: var(--ink); }
+  .avatar { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--band); box-shadow: inset 0 0 0 1px var(--hairline); font-size: 12px; font-weight: calc(650 + var(--fwd)); color: var(--ink); }
+
+  /* ---------- shell states (Phase 0b) ---------- */
+  .youare .bn.mono { font-family: var(--type-mono); font-size: 13px; font-weight: calc(600 + var(--fwd)); }
+  /* behind origin: the commits waiting for you are not yours yet — an outline, not gold leaf */
+  .btn .count.in, .b-stats.in { background: transparent; color: var(--ink-2); box-shadow: inset 0 0 0 1px currentColor; }
+  /* signed out: an empty seat where your initials would be */
+  .account.out .avatar { background: transparent; box-shadow: inset 0 0 0 1px var(--control); color: var(--ink-3); }
+  .avatar svg { width: 12px; height: 12px; }
+  .account[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .account[disabled]:hover { background: transparent; color: var(--ink-2); }
+  .acct { position: relative; display: inline-flex; }
+  .menu { position: absolute; z-index: 25; top: calc(100% + 8px); right: 0; min-width: 212px; padding: 4px; border-radius: 6px; background: var(--sheet-hi); box-shadow: var(--tip-shadow); }
+  .menu[hidden] { display: none; }
+  .menu-head { margin: 0 0 4px; padding: 7px 10px 9px; border-bottom: 1px solid var(--hairline-soft); font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+  .menu-head b { color: var(--ink); font-weight: calc(600 + var(--fwd)); }
+  .menu-item { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 6px 10px; border-radius: 4px; font-size: 13px; font-weight: calc(550 + var(--fwd)); transition: background-color var(--t-hover) ease-out; }
+  .menu-item:hover { background: var(--hover); }
+  .menu-item:focus-visible { outline-offset: -2px; }
+  /* a failed shell op hangs a notice in the sign — in the station's place, beside the button
+     you just pressed — until it is dismissed or the next op starts. Nothing below moves */
+  .notice { display: none; align-items: center; gap: 8px; min-width: 0; height: 30px; padding: 0 3px 0 9px; border-radius: var(--r-ctl); background: var(--danger-bg); color: var(--danger); box-shadow: inset 0 0 0 1px currentColor; }
+  .has-notice .notice { display: flex; }
+  .notice-mark { width: 16px; height: 16px; flex: none; }
+  .notice-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--ink); }
+  .notice-text b { color: var(--danger); font-weight: calc(650 + var(--fwd)); }
+  .notice-x { width: 24px; height: 24px; flex: none; padding: 0; border: 0; border-radius: 3px; background: transparent; color: var(--danger); display: inline-flex; align-items: center; justify-content: center; transition: background-color var(--t-hover) ease-out; }
+  .notice-x:hover { background: color-mix(in oklab, currentColor 14%, transparent); }
+  .notice-x svg { width: 12px; height: 12px; }
+  .has-notice .station, .has-notice .youare { display: none; }
+
+  /* ============================== SIDEBAR — the line legend ============================== */
+  .sidebar { grid-area: side; display: flex; flex-direction: column; }
+  .side-sec { min-height: 0; display: flex; flex-direction: column; }
+  .side-sec.branches { flex: 1; }
+  .sec-head { display: flex; align-items: center; gap: 10px; padding: 13px 14px 6px; flex: none; }
+  .sec-title { margin: 0; font-size: 13px; font-weight: calc(650 + var(--fwd)); color: var(--ink-2); }
+  .sec-head .rule { flex: 1; height: 1px; background: var(--hairline-soft); }
+  .text-btn { border: 0; background: transparent; padding: 2px 2px; font-size: 12.5px; font-weight: calc(600 + var(--fwd)); color: var(--line-ink); border-radius: 3px; transition: color var(--t-hover) ease-out, opacity var(--t-hover) ease-out; }
+  .text-btn:hover { color: var(--ink); }
+  .text-btn[disabled] { color: var(--ink-3); opacity: 0.55; cursor: not-allowed; }
+  .side-list { list-style: none; margin: 0; padding: 0 6px; overflow: auto; overscroll-behavior: none; }
+  .repo-item { width: 100%; text-align: left; border: 0; background: transparent; padding: 6px 8px; border-radius: 5px; display: block; transition: background-color var(--t-hover) ease-out; }
+  .repo-item:hover { background: var(--hover); }
+  .ri-name { display: block; font-size: 13.5px; font-weight: calc(600 + var(--fwd)); }
+  .ri-meta { display: flex; gap: 8px; font-size: 12px; color: var(--ink-3); }
+  .ri-path { font-family: var(--type-mono); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ri-date { flex: none; font-variant-numeric: tabular-nums; }
+
+  .branch { display: flex; align-items: center; border-radius: 5px; transition: background-color var(--t-hover) ease-out; }
+  .branch:hover { background: var(--hover); }
+  .branch.current { background: var(--selected); box-shadow: var(--sel-shadow); }
+  .branch-btn { flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; display: flex; align-items: center; gap: 9px; padding: 5px 8px; border-radius: 5px; }
+  .branch-btn[aria-disabled="true"] { cursor: default; }
+  .b-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--type-mono); font-size: 12.5px; }
+  .branch.current .b-name { font-weight: calc(600 + var(--fwd)); }
+  .branch.remote .b-name { color: var(--ink-2); }
+  .b-stats { font-family: var(--type-mono); font-size: 12px; font-weight: 600; flex: none; padding: 0 5px; border-radius: 3px; background: var(--gold-leaf); color: var(--on-gold); }
+  .b-del { width: 22px; height: 22px; margin-right: 4px; flex: none; padding: 0; border: 0; background: transparent; border-radius: 4px; color: var(--ink-3); display: inline-flex; align-items: center; justify-content: center; opacity: 0; transition: opacity var(--t-hover) ease-out, color var(--t-hover) ease-out, background-color var(--t-hover) ease-out; }
+  .b-del svg { width: 12px; height: 12px; }
+  .branch:hover .b-del, .b-del:focus-visible { opacity: 1; }
+  .b-del:hover { color: var(--danger); background: var(--danger-bg); }
+  .group-label { padding: 12px 8px 4px; font-size: 12px; font-weight: calc(600 + var(--fwd)); color: var(--ink-3); }
+  .side-foot { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--hairline-soft); flex: none; }
+  .side-foot .btn { flex: 1; }
+
+  /* ============================== GRAPH — the map, printed on mica ============================== */
+  .graph-pane { grid-area: graph; position: relative; }
+  .graph-scroll { height: 100%; overflow: auto; overscroll-behavior: none; padding: 6px 0 12px; }
+  .graph { position: relative; min-width: 560px; }
+  .lanes { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; overflow: visible; }
+  .row {
+    position: relative; z-index: 1;
+    height: var(--row);
+    display: grid; grid-template-columns: 66px minmax(0, 1fr) auto; align-items: center; column-gap: 10px;
+    padding: 0 12px 0 var(--gutter, 80px);
+    cursor: pointer;
+    transition: background-color var(--t-hover) ease-out;
+  }
+  .row:hover { background: var(--hover); }
+  .row[aria-selected="true"] { background: var(--selected); box-shadow: var(--sel-shadow); }
+  .row:focus-visible { outline: 2px solid var(--line); outline-offset: -2px; }
+  .hash { font-family: var(--type-mono); font-size: 12px; font-weight: calc(500 + var(--fwd)); color: var(--ink-2); }
+  .subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+  .subject .pfx { color: var(--ink-3); }
+  .subject .prn { color: var(--line-ink); font-weight: calc(600 + var(--fwd)); }
+  .subject .from { font-family: var(--type-mono); font-size: 12.5px; color: var(--ink-2); }
+  .row.merge .subject { color: var(--ink-3); }
+  .refs { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+  .ref { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-family: var(--type-mono); font-size: 12px; }
+  .ref.head { height: 22px; padding: 0 8px 0 2px; border-radius: 11px 3px 3px 11px; background: var(--primary); color: var(--on-primary); font-weight: 500; }
+  .ref.head .rd { box-shadow: 0 0 0 1.5px var(--head-ring); }
+  .ref.local { color: var(--ink); font-weight: 500; }
+  .ref.remote { color: var(--ink-2); }
+  .ref.tag { color: var(--gold-ink); font-weight: 600; }
+  .ref.tag svg { width: 10px; height: 10px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .here-pulse { transform-box: fill-box; transform-origin: center; animation: kl-pulse 1200ms ease-out 2 both; }
+  }
+  @keyframes kl-pulse { from { transform: scale(0.7); opacity: 0.7; } to { transform: scale(2.1); opacity: 0; } }
+
+  .tip { position: absolute; z-index: 20; max-width: 400px; min-width: 260px; background: var(--sheet-hi); border-radius: 6px; overflow: hidden; box-shadow: var(--tip-shadow); pointer-events: none; opacity: 0; transform: translateY(3px); transition: opacity 160ms ease-out; }
+  .tip.show { opacity: 1; transform: none; }
+  .tip-bar { height: 3px; background: var(--tl, var(--line)); }
+  .tip-body { padding: 10px 14px 11px; }
+  /* 訊息最多 4 行：站牌最高 169px，最小視窗（1200 × 800，graph 區 388px）裡任何一列的上方或下方都放得下（中間那列兩邊各約 173px）；
+     不設限時 1000 字的訊息有 21 行、501px，翻到上方也會被 .sheet 裁掉 */
+  .tip-subject { margin: 0 0 8px; font-size: 14.5px; font-weight: calc(620 + var(--fwd)); line-height: 1.35; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+  .tip dl { margin: 0; display: grid; grid-template-columns: 56px 1fr; row-gap: 2px; font-size: 12.5px; }
+  .tip dt { color: var(--ink-3); }
+  .tip dd { margin: 0; color: var(--ink-2); }
+  .tip dd.mono { font-family: var(--type-mono); font-size: 12px; word-break: break-all; }
+
+  /* the end of the loaded history: lines that run on beyond it fade out under the last row */
+  .graph-end { position: relative; z-index: 1; display: grid; gap: 2px; padding: 6px 12px 0 var(--gutter, 80px); font-size: 12.5px; color: var(--ink-3); }
+  .graph-end[hidden] { display: none; }
+  .graph-end p { margin: 0; min-height: 24px; display: flex; align-items: center; gap: 7px; }
+  .graph-end .here { color: var(--ink-2); }
+  .graph-end .here b { color: var(--ink); font-weight: calc(600 + var(--fwd)); }
+  .graph-end .flk { width: 16px; height: 16px; flex: none; }
+  /* opening a repo: the map is still being printed */
+  .graph-loading { position: relative; padding-left: 43px; -webkit-mask-image: linear-gradient(#000 50%, transparent 96%); mask-image: linear-gradient(#000 50%, transparent 96%); }
+  .graph-loading svg { position: absolute; left: 0; top: 0; }
+  .sk-row { height: var(--row); display: grid; grid-template-columns: 66px minmax(0, 1fr); align-items: center; column-gap: 10px; padding-right: 12px; }
+  .sk-row i:first-child { width: 52px; }
+  /* refs that don't fit fold into a count; a ref with no line of its own has no letter */
+  .ref.more { height: 18px; padding: 0 6px; border-radius: 9px; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--hairline); }
+  .rd.lodge, .rd.lodge.hollow { background: var(--sheet-hi); box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+
+  /* ============================== SIDE PANE ============================== */
+  .side-pane { grid-area: pane; display: flex; flex-direction: column; }
+  .tabs { display: flex; gap: 2px; padding: 4px 8px 0; border-bottom: 1px solid var(--hairline-soft); flex: none; }
+  .tab { position: relative; border: 0; background: transparent; padding: 9px 10px 10px; font-size: 13.5px; font-weight: calc(560 + var(--fwd)); color: var(--ink-3); transition: color var(--t-hover) ease-out; }
+  .tab:hover { color: var(--ink-2); }
+  .tab[aria-selected="true"] { color: var(--ink); }
+  .tab::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 3px; background: var(--line); border-radius: 2px; opacity: 0; transform: scaleX(0.6); transition: opacity var(--t-state) ease-out; }
+  .tab[aria-selected="true"]::after { opacity: 1; transform: none; }
+  .tabpanel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .tabpanel[hidden] { display: none; }
+  @media (prefers-reduced-motion: no-preference) { .enter { animation: kl-fade 200ms ease-out; } }
+  @keyframes kl-fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
+  .stage-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: none; padding-bottom: 8px; }
+  .stage-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 5px; }
+  .stage-head h3 { margin: 0; font-size: 13px; font-weight: calc(650 + var(--fwd)); color: var(--ink-2); display: flex; align-items: baseline; gap: 6px; }
+  .stage-head .n { font-size: 12px; font-weight: calc(500 + var(--fwd)); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .stage-head .rule { flex: 1; height: 1px; background: var(--hairline-soft); }
+  .files { list-style: none; margin: 0; padding: 0 6px; }
+  .file { display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 8px; border-radius: 5px; transition: background-color var(--t-hover) ease-out; }
+  .file:hover { background: var(--hover); }
+  .fname { flex: 1; min-width: 0; display: flex; align-items: baseline; }
+  .fname .dir { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--ink-3); }
+  .fname .base { flex: none; font-size: 13.5px; font-weight: calc(560 + var(--fwd)); white-space: nowrap; }
+  .badge { width: 19px; height: 19px; border-radius: 4px; flex: none; display: inline-flex; align-items: center; justify-content: center; font-family: var(--type-mono); font-size: 12px; font-weight: 600; box-shadow: inset 0 0 0 1px currentColor; }
+  .badge.M { background: var(--warning-bg); color: var(--warning); }
+  .badge.A { background: var(--success-bg); color: var(--success); }
+  .badge.D { background: var(--danger-bg); color: var(--danger); }
+  .stage-btn { width: 22px; height: 22px; flex: none; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--hairline); background: var(--sheet-hi); color: var(--ink-2); transition: border-color var(--t-hover) ease-out, color var(--t-hover) ease-out, background-color var(--t-hover) ease-out; }
+  .stage-btn svg { width: 11px; height: 11px; }
+  .stage-btn:hover { border-color: var(--control); color: var(--ink); background: var(--btn-hover-bg); }
+  .empty-line { padding: 4px 16px 6px; font-size: 12.5px; color: var(--ink-3); }
+
+  .commit-form { flex: none; padding: 10px 12px 12px; border-top: 1px solid var(--hairline-soft); }
+  .commit-form textarea { display: block; width: 100%; min-height: 76px; resize: none; overscroll-behavior: none; padding: 9px 11px; border-radius: 5px; border: 1px solid var(--control); background: var(--input-bg); font-size: 14px; line-height: 1.5; color: var(--ink); transition: border-color var(--t-hover) ease-out, box-shadow var(--t-hover) ease-out; }
+  .commit-form textarea::placeholder { color: var(--ink-3); }
+  .commit-form textarea:focus { outline: none; border-color: var(--line); box-shadow: 0 0 0 3px var(--focus-glow); }
+  .commit-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .commit-row .btn { flex: 1; height: 34px; }
+  .commit-note { font-size: 12.5px; color: var(--success); font-weight: calc(560 + var(--fwd)); opacity: 0; transition: opacity var(--t-state) ease-out; white-space: nowrap; }
+  .commit-note.show { opacity: 1; }
+
+  .prs { list-style: none; margin: 0; padding: 4px 6px; overflow: auto; overscroll-behavior: none; flex: 1; min-height: 0; }
+  .pr { border-radius: 6px; }
+  .pr + .pr { margin-top: 2px; }
+  .pr-row { width: 100%; border: 0; background: transparent; text-align: left; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; column-gap: 8px; align-items: start; padding: 9px 8px; border-radius: 6px; transition: background-color var(--t-hover) ease-out; }
+  .pr-row:hover { background: var(--hover); }
+  .pr.open { background: var(--sheet-hi); box-shadow: 0 0 0 1px var(--hairline-soft); }
+  .pr.open .pr-row:hover { background: transparent; }
+  .chev { width: 14px; height: 14px; margin-top: 2px; color: var(--ink-3); }
+  .pr.open .chev { transform: rotate(90deg); }
+  .pr-title { display: block; font-size: 13.5px; font-weight: calc(560 + var(--fwd)); line-height: 1.35; }
+  .pr-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; color: var(--ink-3); }
+  .pr-meta .num { font-family: var(--type-mono); color: var(--line-ink); font-weight: 600; }
+  .pr-meta .via { display: inline-flex; align-items: center; gap: 5px; font-family: var(--type-mono); color: var(--ink-2); }
+  .pr-meta .via .rd { width: 16px; height: 16px; }
+  .draft { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--hairline); font-size: 12px; color: var(--ink-3); font-weight: calc(500 + var(--fwd)); vertical-align: 1px; }
+  .pr-status { display: flex; gap: 6px; padding-top: 1px; }
+  .st { width: 16px; height: 16px; }
+  .st.ok { color: var(--success); } .st.bad { color: var(--danger); } .st.wait { color: var(--warning); }
+  .pr-body { padding: 0 10px 10px 30px; }
+
+  /* ============================== DIFF ============================== */
+  .diff-pane { grid-area: diff; background: var(--code-bg); }
+  .diff-scroll { height: 100%; overflow: auto; overscroll-behavior: none; padding: 12px; }
+  .dfile { border-radius: 6px; box-shadow: 0 0 0 1px var(--hairline-soft); margin-bottom: 12px; overflow: hidden; background: var(--code-bg); }
+  .dfile-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--sheet); border-bottom: 1px solid var(--hairline-soft); }
+  .dpath { font-family: var(--type-mono); font-size: 12.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dpath .dir { color: var(--ink-3); }
+  .hunk-head { padding: 4px 12px; background: var(--band); font-family: var(--type-mono); font-size: 12px; color: var(--info); }
+  /* a hunk scrolls across inside a diff that scrolls down, so it stops the bounce on its own axis only. With none on
+     both, a trackpad gesture that began over a hunk holding a long line went nowhere (WebKit gives the whole gesture
+     to the innermost scroller under the fingers) and a mouse wheel stopped there; a hunk taller than the diff locked
+     it until the selection moved (2026-10-12; tools/wheel_check.py) */
+  .hunk-body { overflow-x: auto; overscroll-behavior-x: none; padding-bottom: 6px; }
+  .hunk-inner { width: max-content; min-width: 100%; }
+  .dl { display: grid; grid-template-columns: 44px 44px 18px auto; font-family: var(--type-mono); font-size: 12.5px; line-height: 20px; }
+  .dl .ln { text-align: right; padding-right: 8px; color: var(--ink-3); user-select: none; font-variant-numeric: tabular-nums; }
+  .dl .og { text-align: center; user-select: none; }
+  .dl code { font: inherit; white-space: pre; padding-right: 24px; }
+  /* a thin line marks each changed run — the map's language reaching into the diff */
+  .dl.add { background: var(--success-bg); box-shadow: inset 3px 0 0 var(--success); }
+  .dl.add .og { color: var(--success); font-weight: 600; }
+  .dl.del { background: var(--danger-bg); box-shadow: inset 3px 0 0 var(--danger); }
+  .dl.del .og { color: var(--danger); font-weight: 600; }
+  /* git's "\ No newline at end of file": a note on the line above, not a line of either side (Phase 5) */
+  .dl.eof { color: var(--ink-3); }
+  .k { color: var(--syn-kw); } .s { color: var(--syn-str); } .n { color: var(--syn-num); }
+  .t { color: var(--syn-type); } .f { color: var(--syn-fn); } .c { color: var(--syn-com); }
+  /* a bidirectional control in the code, named instead of obeyed (Phase 5 Q-T) */
+  .bidi { padding: 0 3px; margin: 0 1px; border-radius: 3px; font-size: 10px; font-weight: 600; vertical-align: 1px;
+          color: var(--warning); background: var(--warning-bg); box-shadow: inset 0 0 0 1px currentColor; }
+
+  .diff-empty, .graph-empty, .pane-empty { height: 100%; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; }
+  .graph-empty[hidden] { display: none; }
+  .diff-empty svg, .graph-empty svg, .pane-empty svg { width: 176px; height: 36px; }
+  .diff-empty p, .graph-empty p, .pane-empty p { margin: 0; font-size: 14px; color: var(--ink-2); }
+  .diff-empty .hint, .graph-empty .hint, .pane-empty .hint { font-size: 12.5px; color: var(--ink-3); }
+  .diff-empty kbd { font-family: var(--type-mono); font-size: 12px; padding: 0 5px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--hairline); background: var(--sheet); }
+  .skeleton { padding: 4px 2px; display: grid; gap: 10px; }
+  .skeleton i, .sk-row i, .sk i { display: block; height: 12px; border-radius: 3px; background: var(--band); position: relative; overflow: hidden; }
+  .skeleton i::after, .sk-row i::after, .sk i::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--shimmer), transparent); transform: translateX(-100%); }
+  @media (prefers-reduced-motion: no-preference) { .skeleton i::after, .sk-row i::after, .sk i::after { animation: kl-shimmer 1.1s ease-out infinite; } }
+  @keyframes kl-shimmer { to { transform: translateX(100%); } }
+
+  /* ============================== PANEL STATES (Phase 0b P5) ==============================
+     Five ways, one per state: an empty state in the area (the .diff-empty layout), a line in a list
+     (.empty-line), a strip at the top of an area, a cell in place of a file's hunks, a skeleton.
+     A press that fails says so in the sign (the shell's notice); an area that cannot be read, here */
+  .pane-empty { flex: 1; min-height: 0; padding: 16px; }
+  .pane-empty[hidden] { display: none; }
+  .diff-empty p b, .pane-empty p b { color: var(--ink); font-weight: calc(600 + var(--fwd)); }
+  /* an area that could not be read: a mark instead of a picture, and Retry */
+  .diff-empty svg.mark, .pane-empty svg.mark { width: 22px; height: 22px; color: var(--danger); }
+  .diff-empty .btn, .pane-empty .btn { margin-top: 2px; }
+  /* a Retry that worked moves focus to the area it read again, since its button is gone: the area draws no
+     ring of its own, the next Tab lands inside it */
+  .side-list:focus, .tabpanel:focus, .diff-scroll:focus { outline: none; }
+  /* a strip: a fact about the whole list or diff, in the notice's shape (mark, bold verdict, one sentence)
+     and the warning's colours. It cannot be dismissed: it stays as long as the fact does */
+  .strip { display: flex; align-items: flex-start; gap: 8px; margin: 0 8px 6px; padding: 6px 10px 7px; border-radius: var(--r-ctl); background: var(--warning-bg); box-shadow: inset 0 0 0 1px var(--warning); font-size: 12.5px; line-height: 1.45; color: var(--ink); }
+  .strip svg { width: 16px; height: 16px; flex: none; margin-top: 1px; color: var(--warning); }
+  .strip b { color: var(--warning); font-weight: calc(650 + var(--fwd)); }
+  .strip code { font-family: var(--type-mono); font-size: 12px; white-space: nowrap; }
+  .diff-scroll > .strip, .pr-body > .strip { margin: 0 0 12px; }
+  /* a cell in place of a file's hunks: why its diff is not here. Kept back by the display limit or over
+     10 MB in the warning's colours; binary or nothing textual in plain grey. One click selects the command */
+  .dcell { padding: 8px 12px 9px; font-size: 12.5px; color: var(--ink-3); }
+  .dcell.warn { background: var(--warning-bg); color: var(--ink-2); }
+  .dcell b { color: var(--warning); font-weight: calc(650 + var(--fwd)); }
+  .dcell .size { font-variant-numeric: tabular-nums; }
+  .dcell .how { margin-top: 3px; }
+  .dcell code { font-family: var(--type-mono); font-size: 12px; color: var(--ink); overflow-wrap: anywhere; -webkit-user-select: all; user-select: all; }
+  .badge.R { background: color-mix(in oklab, var(--info) 10%, var(--sheet-hi)); color: var(--info); }
+  .pr-body .empty-line { margin: 0; padding: 2px 0 4px; }
+  .empty-line b { color: var(--danger); font-weight: calc(600 + var(--fwd)); }
+  /* the sidebar: a branch whose upstream was pruned, and the counts of the branches you are not on */
+  .b-tag { flex: none; padding: 0 5px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--hairline); font-size: 12px; font-weight: calc(500 + var(--fwd)); color: var(--ink-3); }
+  .b-stats.plain { padding: 0; background: transparent; color: var(--ink-3); font-weight: calc(500 + var(--fwd)); }
+  /* a branch whose tip is older than the loaded commits has no line on the map to wear */
+  .rd.beyond { background: var(--sheet-hi); box-shadow: none; }
+  .rd.beyond svg { width: 18px; height: 18px; }
+  .rd.beyond circle { fill: none; stroke: var(--ink-3); stroke-width: 1.5; stroke-dasharray: 2.59 2.594; }
+  /* conflicts: git's short status in the badge (UU AA DU UD). They have no stage button, so a gap keeps
+     the badges' right edges in one column */
+  .badge.C { width: auto; min-width: 27px; padding: 0 4px; background: var(--danger-bg); color: var(--danger); }
+  .stage-gap { width: 22px; flex: none; }
+  /* skeletons in the shape of what is coming */
+  .sk-branch { display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 8px; }
+  .sk-branch i:first-child { width: 18px; height: 18px; border-radius: 50%; flex: none; }
+  /* a branch's roundel while the graph is still out: its colour and letter come from the route map */
+  .sk-rd { flex: none; }
+  .sk-rd i { width: 18px; height: 18px; border-radius: 50%; }
+  .sk-file { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px 0 8px; }
+  .sk-file i:last-child { width: 19px; height: 19px; border-radius: 4px; flex: none; margin-left: auto; }
+  .sk-pr { display: grid; gap: 9px; padding: 12px 8px 13px 30px; }
+  .sk-pr i:last-child { height: 10px; }
+
+  /* motion that moves, scales or turns runs only when nobody asked for less */
+  @media (prefers-reduced-motion: no-preference) {
+    .tip { transition: opacity 160ms ease-out, transform 160ms ease-out; }
+    .tab::after { transition: opacity var(--t-state) ease-out, transform var(--t-state) var(--curve-settle); }
+    .chev { transition: transform var(--t-state) var(--curve-settle); }
+    .carriage { transition: opacity var(--t-state) ease-out, transform 120ms ease-out; }
+  }
+
+  /* ============================== RESPONSIVE ============================== */
+  @media (max-width: 1220px) {
+    .app { grid-template-columns: 204px minmax(0, 62fr) minmax(0, 38fr); }
+    .st-path, .youare .lbl { display: none; }
+  }
+  @media (max-width: 940px) {
+    body { overflow: auto; }
+    .app { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 260px 62vh 420px 52vh; grid-template-areas: "top" "side" "graph" "pane" "diff"; }
+    .topbar { flex-wrap: wrap; padding: 10px 4px 16px; row-gap: 8px; }
+    .tools { margin-left: 0; flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ground" aria-hidden="true">
+  <div class="flecks"></div>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="flake" viewBox="0 0 20 20">
+      <path d="M10 1.6 17.27 5.8v8.4L10 18.4l-7.27-4.2V5.8Z" fill="var(--gold-leaf)" stroke="var(--flake-edge)" stroke-width="1.2" stroke-linejoin="round"/>
+      <path d="M10 1.6v8.4l7.27-4.2Z" fill="oklch(1 0 0 / 0.5)"/>
+      <path d="M10 10 2.73 14.2 10 18.4Z" fill="oklch(0.55 0.10 72 / 0.32)"/>
+    </symbol>
+    <symbol id="i-down" viewBox="0 0 16 16"><path d="M8 2.75v10M4 8.75l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 13.25v-10M4 7.25l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13.25 8A5.25 5.25 0 1 1 11.7 4.3M13.25 2.75v3.2h-3.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-theme" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11Z" fill="currentColor"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 12 12"><path d="M6 2v8M2 6h8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 12 12"><path d="M2 6h8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 12 12"><path d="M3 3l6 6M9 3 3 9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-ok" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m5.2 8.2 1.9 1.9 3.8-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-bad" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m5.8 5.8 4.4 4.4m0-4.4-4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.7v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.2" r="0.95" fill="currentColor"/></symbol>
+    <symbol id="i-wait" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.2 2.2"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></symbol>
+    <symbol id="i-person" viewBox="0 0 12 12"><circle cx="6" cy="4.1" r="2.1" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M2.1 10.4a3.9 3.9 0 0 1 7.8 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+    <symbol id="i-diamond" viewBox="0 0 10 10"><path d="M5 .8 9.2 5 5 9.2.8 5Z" fill="var(--gold-leaf)" stroke="var(--gold-ink)" stroke-width="1"/></symbol>
+  </defs>
+</svg>
+
+<div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<div class="app">
+
+  <!-- ============================== TOP BAR ============================== -->
+  <header class="topbar">
+    <div class="brand"><svg class="flake" aria-hidden="true"><use href="#flake"/></svg>Kira</div>
+    <span class="vr" aria-hidden="true"></span>
+    <div class="station">
+      <span class="st-name">kira</span>
+      <span class="st-path" title="/Users/kira/Documents/kira">~/Documents/kira</span>
+    </div>
+    <div class="youare" id="youare" title="Current branch">
+      <span class="lbl" id="you-lbl">You are on</span>
+      <span class="rd lg" id="you-rd" style="--l:var(--l-rokusho)" aria-hidden="true">T</span>
+      <span class="bn" id="you-bn">feat/t15g-graph-density</span>
+      <span class="note" id="you-note" hidden>No commits yet</span>
+    </div>
+    <div class="notice" id="notice" role="alert">
+      <svg class="notice-mark" aria-hidden="true"><use href="#i-bad"/></svg>
+      <span class="notice-text" id="notice-text"></span>
+      <button class="notice-x" id="notice-x" type="button" aria-label="Dismiss" title="Dismiss"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="tools">
+      <button class="btn" id="pull" title="Pull from origin"><svg aria-hidden="true"><use href="#i-down"/></svg><span class="label">Pull</span><span class="count in" id="behind" style="display:none">0</span></button>
+      <button class="btn" id="push" title="Push to origin"><svg aria-hidden="true"><use href="#i-up"/></svg><span class="label">Push</span><span class="count" id="ahead">2</span></button>
+      <button class="btn ghost" id="refresh" title="Reload commit graph and working tree status"><svg aria-hidden="true"><use href="#i-refresh"/></svg><span class="label">Refresh</span></button>
+      <span class="vr" aria-hidden="true"></span>
+      <button class="icon-btn" id="theme" type="button"><svg aria-hidden="true"><use href="#i-theme"/></svg></button>
+      <div class="acct">
+        <button class="account" id="account" type="button" title="Signed in to GitHub"><span class="avatar" id="avatar" aria-hidden="true">TZ</span><span id="acct-name">tznthou</span></button>
+        <div class="menu" id="acct-menu" role="menu" aria-label="GitHub account" hidden>
+          <p class="menu-head">Signed in as <b>tznthou</b></p>
+          <button class="menu-item" id="signout" type="button" role="menuitem">Sign out</button>
+        </div>
+      </div>
+      <button class="btn ghost">Switch repo</button>
+    </div>
+    <div class="your-line" aria-hidden="true"><svg class="carriage" id="carriage"><use href="#flake"/></svg></div>
+  </header>
+
+  <!-- ============================== SIDEBAR ============================== -->
+  <aside class="sheet sidebar" aria-label="Repositories and branches">
+    <section class="side-sec">
+      <div class="sec-head"><h2 class="sec-title">Recent</h2><span class="rule"></span></div>
+      <ul class="side-list">
+        <li><button class="repo-item" title="/Users/kira/Documents/kira"><span class="ri-name">kira</span><span class="ri-meta"><span class="ri-path">~/Documents/kira</span><span class="ri-date">2026/10/3</span></span></button></li>
+        <li><button class="repo-item" title="/Users/kira/Documents/kira-smoke/work"><span class="ri-name">work</span><span class="ri-meta"><span class="ri-path">~/Documents/kira-smoke/work</span><span class="ri-date">2026/7/30</span></span></button></li>
+        <li><button class="repo-item" title="/Users/kira/Documents/kira-smoke/react"><span class="ri-name">react</span><span class="ri-meta"><span class="ri-path">~/Documents/kira-smoke/react</span><span class="ri-date">2026/7/29</span></span></button></li>
+        <li><button class="repo-item" title="/Users/kira/Documents/BlueprintBuddy"><span class="ri-name">BlueprintBuddy</span><span class="ri-meta"><span class="ri-path">~/Documents/BlueprintBuddy</span><span class="ri-date">2026/7/28</span></span></button></li>
+      </ul>
+    </section>
+    <section class="side-sec branches">
+      <div class="sec-head"><h2 class="sec-title">Branches</h2><span class="rule"></span><button class="text-btn" id="create-branch" title="Create branch">+ New branch</button></div>
+      <ul class="side-list" id="branch-list" tabindex="-1"></ul>
+    </section>
+    <footer class="side-foot">
+      <button class="btn">Open</button>
+      <button class="btn">Clone</button>
+    </footer>
+  </aside>
+
+  <!-- ============================== GRAPH ============================== -->
+  <section class="sheet graph-pane" aria-label="Commit graph">
+    <div class="graph-scroll" id="graph-scroll">
+      <div class="graph" id="graph" role="listbox" aria-label="Git commit graph history">
+        <svg class="lanes" id="lanes" aria-hidden="true"></svg>
+        <div id="rows"></div>
+      </div>
+      <div class="graph-end" id="graph-end" hidden></div>
+      <div class="graph-loading" id="graph-loading" aria-label="Loading commits" hidden></div>
+      <div class="graph-empty" id="graph-empty" hidden>
+        <svg viewBox="0 0 176 36" aria-hidden="true">
+          <path d="M34 18H166" stroke="var(--line)" stroke-width="3.25" stroke-linecap="round" stroke-dasharray="0 7.5"/>
+          <circle cx="76" cy="18" r="4.6" fill="var(--sheet-hi)" stroke="var(--line)" stroke-width="2.2"/>
+          <circle cx="120" cy="18" r="4.6" fill="var(--sheet-hi)" stroke="var(--line)" stroke-width="2.2"/>
+          <circle cx="164" cy="18" r="4.6" fill="var(--sheet-hi)" stroke="var(--line)" stroke-width="2.2"/>
+          <use href="#flake" x="4" y="7" width="22" height="22"/>
+        </svg>
+        <p>No commits yet</p>
+        <p class="hint">Stage files, then commit. Your first commit opens the line.</p>
+      </div>
+    </div>
+    <div class="tip" id="tip" role="tooltip" aria-hidden="true">
+      <div class="tip-bar"></div>
+      <div class="tip-body">
+        <p class="tip-subject" id="tip-subject"></p>
+        <dl>
+          <dt>Author</dt><dd id="tip-author"></dd>
+          <dt>Date</dt><dd id="tip-date"></dd>
+          <dt>Commit</dt><dd class="mono" id="tip-oid"></dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== CHANGES / PRS ============================== -->
+  <section class="sheet side-pane">
+    <div class="tabs" role="tablist" aria-label="Working tree and pull requests">
+      <button class="tab" role="tab" id="tab-changes" aria-selected="true" aria-controls="panel-changes">Changes</button>
+      <button class="tab" role="tab" id="tab-prs" aria-selected="false" aria-controls="panel-prs" tabindex="-1">Pull Requests</button>
+    </div>
+    <div class="tabpanel" id="panel-changes" role="tabpanel" aria-labelledby="tab-changes" tabindex="-1">
+      <div class="stage-scroll">
+        <div id="conflicted"></div>
+        <div id="stage-lists">
+          <div class="stage-head"><h3>Staged <span class="n" id="n-staged"></span></h3><span class="rule"></span><button class="text-btn" id="unstage-all">Unstage all</button></div>
+          <ul class="files" id="staged"></ul>
+          <div class="stage-head"><h3>Unstaged <span class="n" id="n-unstaged"></span></h3><span class="rule"></span><button class="text-btn" id="stage-all">Stage all</button></div>
+          <div id="unstaged-note"></div>
+          <ul class="files" id="unstaged"></ul>
+        </div>
+        <div class="pane-empty" id="changes-state" role="alert" hidden></div>
+      </div>
+      <form class="commit-form" id="commit-form">
+        <label class="sr-only" for="msg">Commit message</label>
+        <textarea id="msg" rows="3" placeholder="Commit message… (⌘↩ to commit)"></textarea>
+        <div class="commit-row">
+          <button class="btn primary" id="commit" type="submit" disabled>Commit</button>
+          <span class="commit-note" id="commit-note" role="status"></span>
+        </div>
+      </form>
+    </div>
+    <div class="tabpanel" id="panel-prs" role="tabpanel" aria-labelledby="tab-prs" tabindex="-1" hidden>
+      <ul class="prs" id="prs"></ul>
+      <div class="pane-empty" id="prs-state" hidden></div>
+    </div>
+  </section>
+
+  <!-- ============================== DIFF ============================== -->
+  <section class="sheet diff-pane">
+    <div class="diff-scroll" id="diff" role="region" aria-label="Diff" tabindex="-1"></div>
+  </section>
+
+</div>
+
+<script>
+(() => {
+  /* ---------- lines: pigment + letter per branch; main is the trunk (墨 by day, 胡粉 by night) ----------
+     Since 2026-10-05 these are what the app's route map (src/lib/routeMap.ts) computes for this history,
+     not hand-picked: t15g's letter is T (word initials come first), and tj, t15f and t15c changed pigment.
+     t15d, t15b and t15c carry no ref, so their letters are never shown. */
+  const LINE = {
+    main: "--l-trunk", t15g: "--l-rokusho", tj: "--l-murasaki", t15f: "--l-gunjo",
+    t15e: "--l-odo", t15d: "--l-gunjo", t15b: "--l-shinsha", t15c: "--l-odo",
+  };
+  const LETTER = { main: "M", t15g: "T", tj: "J", t15f: "F", t15e: "E", t15d: "D", t15b: "B", t15c: "C" };
+  const lc = (br) => `var(${LINE[br] || "--l-trunk"})`;
+  // a lodger (a ref with no line of its own, route rules decision C) gets no letter; --l is the line it sits on.
+  // A branch older than the loaded commits has no line on the map at all: a dashed ring, no colour
+  const roundel = (br, { hollow = false, lodge = false, beyond = false } = {}) => {
+    if (beyond) return `<span class="rd beyond" aria-hidden="true"><svg viewBox="0 0 18 18"><circle cx="9" cy="9" r="8.25"/></svg></span>`;
+    return `<span class="rd${hollow ? " hollow" : ""}${lodge ? " lodge" : ""}" style="--l:${lc(br)}" aria-hidden="true">${lodge ? "" : LETTER[br] || "?"}</span>`;
+  };
+
+  /* ---------- data: real kira history (t15b → t15f) + two branches in flight ---------- */
+  const commits = [
+    { id: "c9e41f2", lane: 1, br: "t15g", s: "feat(t15g): scale lane gutter to container width before the subject column", p: ["7b03d5e"], t: "2026/10/03 14:22" },
+    { id: "e81d6b0", lane: 2, br: "tj", s: "fix(toolbar): give Refresh a fixed min-width so the toolbar stops shifting", p: ["63421cf"], t: "2026/10/03 11:05" },
+    { id: "7b03d5e", lane: 1, br: "t15g", s: "refactor(graph): extract the lane-width budget into layout constants", p: ["4f2a9c1"], t: "2026/10/02 22:41" },
+    { id: "4f2a9c1", lane: 1, br: "t15g", s: "test(graph): add a 17-lane density fixture from react history", p: ["dd9ba36"], t: "2026/10/02 21:10" },
+    { id: "dd9ba36", lane: 0, br: "main", s: "docs: backfill README history for 05-21 and 07-30", p: ["63421cf"], t: "2026/07/30 23:58" },
+    { id: "63421cf", lane: 0, br: "main", s: "Merge pull request #36 from tznthou/feat/t15f-motion", p: ["314e219", "4c6dafd"], t: "2026/07/30 22:31" },
+    { id: "4c6dafd", lane: 1, br: "t15f", s: "docs: correct outdated stack and animation claims after t15f", p: ["9a58413"], t: "2026/07/30 22:12" },
+    { id: "9a58413", lane: 1, br: "t15f", s: "chore: apply review findings — 2 items", p: ["4f709e5"], t: "2026/07/30 21:40" },
+    { id: "4f709e5", lane: 1, br: "t15f", s: "feat(t15f): add restrained motion for tab entry and list hover", p: ["314e219"], t: "2026/07/30 19:03" },
+    { id: "314e219", lane: 0, br: "main", s: "Merge pull request #34 from tznthou/feat/t15e-graph-layout", p: ["e255b9c", "9a70f3f"], t: "2026/07/29 23:20" },
+    { id: "9a70f3f", lane: 1, br: "t15e", s: "chore: apply review findings — 10 items", p: ["9b08a69"], t: "2026/07/29 22:48" },
+    { id: "9b08a69", lane: 1, br: "t15e", s: "feat(graph): surface commit history truncation to the UI", p: ["9d9dfb1"], t: "2026/07/29 21:15" },
+    { id: "9d9dfb1", lane: 1, br: "t15e", s: "refactor(staging): use shared ErrorBanner for conflict notice", p: ["932c96b"], t: "2026/07/29 20:02" },
+    { id: "932c96b", lane: 1, br: "t15e", s: "fix(diff): reserve space for macOS overlay scrollbar", p: ["357dfda"], t: "2026/07/29 18:37" },
+    { id: "357dfda", lane: 1, br: "t15e", s: "fix(pr): refetch pull requests on toolbar refresh", p: ["7e42383"], t: "2026/07/29 17:20" },
+    { id: "7e42383", lane: 1, br: "t15e", s: "feat(graph): right-align ref pills to the container edge", p: ["de312e2"], t: "2026/07/29 15:54" },
+    { id: "de312e2", lane: 1, br: "t15e", s: "fix(graph): recycle lane indices after branch merge", p: ["e255b9c"], t: "2026/07/29 14:09" },
+    { id: "e255b9c", lane: 0, br: "main", s: "docs: update README status table + CHANGELOG for T15 visual polish", p: ["7c90e13"], t: "2026/06/08 23:10" },
+    { id: "7c90e13", lane: 0, br: "main", s: "Merge pull request #32 from tznthou/feat/t15d-theme-parity", p: ["a592721", "1fd83dc"], t: "2026/06/08 22:04" },
+    { id: "1fd83dc", lane: 1, br: "t15d", s: "feat(t15d): theme parity — graph-specific tokens for ink/paper balance", p: ["a592721"], t: "2026/06/08 21:30" },
+    { id: "a592721", lane: 0, br: "main", s: "Merge pull request #31 from tznthou/feat/t15b-graph-craft", p: ["86023a3", "561874d"], t: "2026/06/08 19:46" },
+    { id: "561874d", lane: 1, br: "t15b", s: "feat(t15b): graph craft — bullseye nodes, pill ref labels, layout fixes", p: ["86023a3"], t: "2026/06/08 18:12" },
+    { id: "86023a3", lane: 0, br: "main", s: "Merge pull request #30 from tznthou/feat/t15c-state-design", p: ["ef4e8b9", "0f108fd"], p2br: "t15c", t: "2026/06/08 16:30" },
+  ];
+  const refs = {
+    c9e41f2: [{ k: "head", n: "feat/t15g-graph-density", br: "t15g" }],
+    e81d6b0: [{ k: "local", n: "fix/toolbar-jump", br: "tj" }, { k: "remote", n: "origin/fix/toolbar-jump", br: "tj" }],
+    "4f2a9c1": [{ k: "remote", n: "origin/feat/t15g-graph-density", br: "t15g" }],
+    dd9ba36: [{ k: "local", n: "main", br: "main" }, { k: "remote", n: "origin/main", br: "main" }, { k: "tag", n: "v0.1.0-rc.1" }],
+    "4c6dafd": [{ k: "remote", n: "origin/feat/t15f-motion", br: "t15f" }],
+    "9a70f3f": [{ k: "remote", n: "origin/feat/t15e-graph-layout", br: "t15e" }],
+  };
+  // feat/t9d-watcher (Phase 0b P5): an old branch, its tip and its upstream's both older than the 23 commits
+  // loaded — in the legend, not on the map (route rules decision C). One commit not pushed and two on origin
+  // not pulled: a branch on the map with counts would move its remote ref or add commits to the map
+  const branches = [
+    { n: "feat/t15g-graph-density", br: "t15g", current: true },
+    { n: "feat/t9d-watcher", br: "t9d", beyond: true, ahead: 1, behind: 2 },
+    { n: "fix/toolbar-jump", br: "tj" },
+    { n: "main", br: "main" },
+    { n: "origin/feat/t15e-graph-layout", br: "t15e", remote: true },
+    { n: "origin/feat/t15f-motion", br: "t15f", remote: true },
+    { n: "origin/feat/t15g-graph-density", br: "t15g", remote: true },
+    { n: "origin/feat/t9d-watcher", br: "t9d", remote: true, beyond: true },
+    { n: "origin/fix/toolbar-jump", br: "tj", remote: true },
+    { n: "origin/main", br: "main", remote: true },
+  ];
+  let staged = [
+    { p: "src/components/CommitGraph/GraphCanvas.tsx", s: "M" },
+    { p: "src/lib/graphLayout.ts", s: "M" },
+  ];
+  let unstaged = [
+    { p: "docs/PLAN.md", s: "M" },
+    { p: "src/components/CommitGraph/CommitNode.tsx", s: "M" },
+    { p: "src/tests/laneGutter.test.ts", s: "A" },
+  ];
+  // head_sha → the line it runs on, matched against ref targets (no extra API data)
+  const prs = [
+    { n: 39, title: "chore(deps): pin tauri to the version resolved in Cargo.lock", author: "tznthou", ago: "3d ago", review: "changes_requested", ci: "failure", head: null, diff: "7b03d5e" },
+    { n: 38, title: "Give Refresh a fixed min-width so the toolbar stops shifting", author: "tznthou", ago: "2h ago", review: "approved", ci: "pending", head: "e81d6b0", diff: "e81d6b0" },
+    { n: 37, title: "T15g: adaptive lane gutter for dense histories", author: "tznthou", ago: "1d ago", draft: true, ci: "success", head: "4f2a9c1", diff: "c9e41f2" },
+  ];
+  // ctx: what libgit2 writes after a hunk's @@ … @@ (Phase 5 B2), the nearest line above the hunk that starts with
+  // a letter, _ or $ — none for a hunk at the top of a file. c9e41f2's is what the fixture repository gives
+  const diffs = {
+    c9e41f2: [
+      { p: "src/components/CommitGraph/constants.ts", s: "M", hunks: [{ o: 13, n: 13, ctx: "export const HASH_COL_WIDTH = 60;", lines: [
+        "  *  否則文字截斷長度與欄位寬度會對不上。 */",
+        " export const SUBJECT_TEXT_WIDTH = 320;",
+        " ",
+        "+/** lane 區最多吃容器寬度的比例；超過就壓縮 lane 間距，",
+        "+ *  訊息欄寬度維持 SUBJECT_TEXT_WIDTH 不被擠掉。 */",
+        "+export const LANE_GUTTER_MAX_RATIO = 0.38;",
+        "+",
+        " /** subject 文字截斷字數。見 SUBJECT_TEXT_WIDTH 的耦合說明。 */",
+        " export const SUBJECT_MAX_CHARS = 50;",
+      ] }] },
+      { p: "src/lib/graphLayout.ts", s: "M", hunks: [{ o: 112, n: 112, ctx: "export function computeLayout(", lines: [
+        "   const maxLane = Math.max(0, ...nodes.map((n) => n.x));",
+        "   const edges = buildEdges(nodes);",
+        "-  return { nodes, edges, maxLane };",
+        "+  const gutter = Math.min(",
+        "+    (maxLane + 1) * CELL_WIDTH,",
+        "+    containerWidth * LANE_GUTTER_MAX_RATIO,",
+        "+  );",
+        "+  const cellWidth = gutter / (maxLane + 1);",
+        "+  return { nodes, edges, maxLane, cellWidth };",
+        " }",
+      ] }] },
+    ],
+    e81d6b0: [
+      { p: "src/App.tsx", s: "M", hunks: [{ o: 301, n: 301, ctx: "function App() {", lines: [
+        "           <button",
+        "             onClick={() => void handleRefresh({ refreshPRs: true })}",
+        "             disabled={refreshing || pushPullOp !== null}",
+        "-            className=\"px-3 py-1 text-sm bg-surface-2 hover:bg-surface-3 disabled:bg-surface-1 disabled:cursor-not-allowed rounded\"",
+        "+            className=\"min-w-[6.75rem] px-3 py-1 text-sm bg-surface-2 hover:bg-surface-3 disabled:bg-surface-1 disabled:cursor-not-allowed rounded transition-colors duration-100 ease-out\"",
+        "           >",
+        "             {refreshing ? \"Refreshing...\" : \"Refresh\"}",
+        "           </button>",
+      ] }] },
+      { p: "src/components/ui/Button.tsx", s: "M", hunks: [{ o: 31, n: 31, ctx: "export const Button = forwardRef<HTMLButtonElement, ButtonProps>(", lines: [
+        "     ref,",
+        "   ) {",
+        "     const classes = cn(",
+        "-      \"rounded disabled:cursor-not-allowed transition-colors\",",
+        "+      \"rounded disabled:cursor-not-allowed transition-colors duration-100 ease-out\",",
+        "       variantClasses[variant],",
+        "       sizeClasses[size],",
+      ] }] },
+    ],
+    "7b03d5e": [
+      { p: "src/lib/graphLayout.ts", s: "M", hunks: [{ o: 4, n: 4, ctx: "import type { CommitNode } from \"./tauri\";", lines: [
+        " import { getBranchColor } from \"./branchColors\";",
+        "-const CELL_WIDTH = 24;",
+        "+import { CELL_WIDTH, LANE_GUTTER_MAX_RATIO } from \"../components/CommitGraph/constants\";",
+        " ",
+        " export interface LayoutNode {",
+      ] }] },
+      { p: "src/tests/graphDensity.test.ts", s: "A", hunks: [{ o: 0, n: 1, ctx: "", lines: [
+        "+import { describe, expect, it } from \"vitest\";",
+        "+import { computeLayout } from \"@/lib/graphLayout\";",
+        "+import reactDense from \"./fixtures/react-17-lanes.json\";",
+        "+",
+        "+describe(\"lane gutter budget\", () => {",
+        "+  it(\"keeps the subject column on screen at 17 lanes\", () => {",
+        "+    const layout = computeLayout(reactDense, { containerWidth: 722 });",
+        "+    expect(layout.cellWidth * 18).toBeLessThanOrEqual(722 * 0.38);",
+        "+  });",
+        "+});",
+      ] }] },
+    ],
+  };
+  const DIFF_ROTATION = ["c9e41f2", "e81d6b0", "7b03d5e"];
+
+  /* ---------- state ---------- */
+  let headId = "c9e41f2";
+  let ahead = 2;
+  let selectedId = "c9e41f2";
+  let busy = null;
+  let firstPaint = true;
+  // the station sign's own state (Phase 0b): mirrors what the app reads from
+  // github_get_auth_status, git_get_ahead_behind, repo info remotes and HEAD
+  const shell = {
+    auth: "in",        // in · out · connecting
+    upstream: true,    // the current branch tracks origin/<name>
+    behind: 0,         // commits on the upstream you do not have
+    remote: true,      // an origin is configured
+    detached: false,   // HEAD is not on a branch
+    unborn: null,      // { n, br }: HEAD names a branch that has no commit yet (git init)
+    unknown: false,    // git_get_ahead_behind has not answered (aheadBehind is null)
+  };
+  // the graph's own state (Phase 0b P4): the window git_get_graph returned
+  const walk = {
+    truncated: true,   // GraphData.truncated — the merge at the bottom has both parents beyond the window
+    loading: false,    // opening a repo: git_get_graph has not answered yet
+  };
+  // the panels' own state (Phase 0b P5): what git_list_branches, git_get_status, github_list_prs,
+  // github_get_pr_diff and git_get_diff answered — still out, failed, or read. Signed out and "not GitHub"
+  // come from the shell (the backend asks whether origin is on github.com before it reads the token)
+  const panel = {
+    branches: "ok",    // ok · loading · error
+    changes: "ok",     // ok · loading · error
+    prs: "ok",         // ok · loading · empty · rate · error
+    prDiff: "ok",      // ok · loading · error · large
+    diff: "ok",        // ok · error
+  };
+  let conflicted = [];        // WorkingTreeStatus.conflicted, in git's short status: UU AA DU UD
+  let unstagedCut = false;    // WorkingTreeStatus.unstaged_truncated: the list stops at 5,000
+  const diffCut = new Set();  // keys of diffs whose DiffResult.truncated is set: the first 500 files only
+  // ?fail=push,pull,refresh,connect,signout,checkout,stage,commit,status,branches — each named op fails once, then works
+  const failOnce = new Set((new URLSearchParams(location.search).get("fail") || "").split(",").filter(Boolean));
+  const takeFail = (op) => failOnce.delete(op);
+
+  /* ---------- helpers (esc is in the highlight block below) ---------- */
+  const $ = (id) => document.getElementById(id);
+  const ROW = 34, LANE = 20, X0 = 19, LW = 3.25;
+  const X = (lane) => X0 + lane * LANE;
+  const Y = (i) => i * ROW + ROW / 2;
+  // a truncated window leaves room under the last row for the lines that run on to fade out in
+  const TAIL = 30;
+  const mapHeight = () => commits.length * ROW + (walk.truncated ? TAIL : 12);
+  const indexOf = () => new Map(commits.map((c, i) => [c.id, i]));
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const fullOid = (id) => `${id}${"5f0a3c9e1b2d48a7c6e0f9d3b1a24e8c07".slice(0, 33)}`;
+  const plural = (n, word) => `${n.toLocaleString("en-US")} ${word}${n === 1 ? "" : "s"}`;
+  // the app's formatBytes (src/lib/cloneProgress.ts)
+  const formatBytes = (n) => n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1)} KiB`
+    : n < 1024 ** 3 ? `${(n / 1024 ** 2).toFixed(1)} MiB` : `${(n / 1024 ** 3).toFixed(2)} GiB`;
+  // how to see a file the display limit kept back (Phase 0b P5 Q3: it cannot be opened in place). Against
+  // the first parent, as Kira diffs it: on a merge -m --first-parent, since a plain git show prints nothing
+  // for a file one side kept as it was. Twelve hex digits, since seven can be ambiguous in a repository the
+  // size of the kernel's. The path quoted for the shell (POSIX sh, bash, zsh) unless it is only letters,
+  // digits and . _ / -; and as :(literal) when git would read it as a pattern ("[id]" matches i or d).
+  // A path with control characters gets no command, nor does one with bidirectional controls (Phase 5 Q-T):
+  // shown as they are they would make the command read as another file's, and named they would not paste
+  function showCommand(c, path) {
+    if (/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069\u200e\u200f\u061c]/.test(path)) return null;
+    const spec = /[*?[\\]/.test(path) || path.startsWith(":") ? `:(literal)${path}` : path;
+    const arg = /^[A-Za-z0-9._\/-]+$/.test(spec) ? spec : `'${spec.replace(/'/g, "'\\''")}'`;
+    return `git show ${c.p.length > 1 ? "-m --first-parent " : ""}${fullOid(c.id).slice(0, 12)} -- ${arg}`;
+  }
+
+  /* ---------- highlight: a diff line's code in colour (Phase 5 Q-H) ----------
+     Copied verbatim into the app (src/lib/v8-highlight.js) by tools/sync_v8_css.py, so it uses nothing else on
+     this page; the page uses its esc. Six kinds of token, tried in this order where two could start at the same
+     place: comment, string, keyword, number, function (a name being called), type; in JavaScript and TypeScript a
+     line or a run of JSX text comes first and stays as it is. One line at a time, knowing nothing of the lines
+     around it: a block comment whose lines do not start with * is coloured as code, and of a string that runs over
+     lines the first line is a string to its end and the lines after it are code (unless they read as text). Only the
+     languages below are coloured, chosen by the file's extension;
+     anything else (Markdown, text, extensions it does not know) is shown as it is. Lookbehind needs WebKit of
+     Safari 16.4 or later, as the route map's WORD_BREAK already does (Phase 5 Q-W) */
+  // a carriage return inside a line is written as a character reference: through innerHTML the HTML parser turns a bare
+  // CR into a line feed, and a line that git counts as one shows as two (review, 2026-10-11)
+  const esc = (s) => String(s).replace(/[&<>"\r]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "\r": "&#13;" }[ch]));
+  // a bidirectional control in the code is named, not obeyed (Phase 5 Q-T, Trojan Source): the embeddings, overrides,
+  // isolates and marks would reorder what the line shows, so a string can read as code and a comment. Zero-width
+  // joiners stay as they are: emoji are made of them. The line and paragraph separators (U+2028, U+2029) are named
+  // too: under white-space: pre WebKit breaks the row at them, and a line git counts as one shows as two (second
+  // review, 2026-10-12; the same symptom as a bare carriage return, by another door)
+  const BIDI = { "\u202a": "LRE", "\u202b": "RLE", "\u202c": "PDF", "\u202d": "LRO", "\u202e": "RLO", "\u2066": "LRI",
+    "\u2067": "RLI", "\u2068": "FSI", "\u2069": "PDI", "\u200e": "LRM", "\u200f": "RLM", "\u061c": "ALM",
+    "\u2028": "LS", "\u2029": "PS" };
+  // code (a diff line, a hunk header) as HTML: escaped, its bidirectional controls marked
+  const escCode = (s) => esc(s).replace(/[\u202a-\u202e\u2066-\u2069\u200e\u200f\u061c\u2028\u2029]/g, (c) =>
+    `<span class="bidi" title="U+${c.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}">${BIDI[c]}</span>`);
+  const LANGS = (() => {
+    const anyOf = (list) => list.split(" ").join("|");
+    // a word of the language, not part of a longer name and not a property (x.default, set.delete())
+    const words = (list) => new RegExp(`(?<![\\w$.])(?:${anyOf(list)})(?![\\w$])`);
+    const either = (...res) => new RegExp(res.map((re) => re.source).join("|"));
+    const tokens = (kinds) => new RegExp(Object.entries(kinds).map(([k, re]) => `(?<${k}>${re.source})`).join("|"), "g");
+    // [\s\S] rather than .: a line can hold U+2028 or a bare carriage return, which . does not cross, and a block comment
+    // that cannot reach the end of the line is tried again from every /* it holds (quadratic; review, 2026-10-11)
+    const comment = /\/\/[\s\S]*|\/\*[\s\S]*?(?:\*\/|$)|^\s*\*[\s\S]*/;
+    // a string the line does not close runs to the end of the line, as the first line of a template literal does in an
+    // editor: one match either way, where a string that had to close was tried again from every quote inside it
+    // (quadratic on JavaScriptCore; review, 2026-10-11). Its escapes cross U+2028 and a carriage return for the same
+    // reason, and a lone backslash at the end of the line is taken too: the escape could not take it and $ before it does
+    // not match, so every quote before it was tried again as the opening one (second review, 2026-10-12).
+    // Every single quote starts a string, an apostrophe too (You're in a line of JSX text holding an expression reads as
+    // a string from there to the end of the line): a rule that took some of them for apostrophes (glued to a word, after
+    // a closing brace) took the opening quote of a legal string in the same place too (}'…', get'…'(){}, void'…'), and
+    // the line could then show a call after it as a comment (third review, 2026-10-12). A regular expression holding a
+    // lone quote (/'/g) reads as a string from that quote on: this highlighter knows no regular expression literals
+    const quoted = /"(?:[^"\\]|\\[\s\S])*(?:"|\\?$)|'(?:[^'\\]|\\[\s\S])*(?:'|\\?$)/;
+    const number = /\b(?:0[xXoObB][\da-fA-F_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?)n?\b/;
+    const capitalised = /\b[A-Z][A-Za-z0-9_]*\b/;
+    const JS_WORDS = "as async await break case catch class const continue debugger default delete do else enum export "
+      + "extends false finally for from function if implements import in instanceof interface keyof let new null of "
+      + "private protected public readonly return satisfies static super switch this throw true try type typeof undefined "
+      + "var void while yield";
+    // JSX text, left as it is (Phase 5 Q-H3): a whole line with nothing of code in it — none of ; = ( ) { } [ ] < > " `
+    // | & : // /*, an apostrophe only inside a word (Couldn't), not a list's line (a comma at the end), a comment (* /),
+    // a ternary (? :), a negation (!) or a statement (a keyword first: return x) — or the text between a tag and the
+    // tag that closes it, taken with the > before it: JSC ranks an alternative that starts with a lookbehind below the
+    // ones after it (2026-10-11). A lone name or number on its own line of a longer expression reads as text too
+    const proseChar = /(?:[^;=(){}\[\]<>"'`|&:\/]|\/(?![\/*])|(?<=\w)'(?=\w))/;
+    // the comma rule is a lookahead over the whole line, read once; as a lookbehind at the end it re-read the spaces on
+    // every step back (quadratic on "a," and spaces; review, 2026-10-11)
+    const proseLine = new RegExp(`^\\s*(?![*/?:!])(?!(?:${anyOf(JS_WORDS)})(?![\\w$]))(?![\\s\\S]*,\\s*$)(?=\\S)${proseChar.source}*$`);
+    const tagText = />[^<>{}]+(?=<\/)/;
+    return new Map([
+      ["js", tokens({
+        text: either(proseLine, tagText),
+        c: comment,
+        s: either(quoted, /`(?:[^`\\]|\\[\s\S])*(?:`|\\?$)/),
+        k: words(JS_WORDS),
+        n: number,
+        f: /(?<![\w$])[a-z_$][\w$]*(?=\()/,
+        t: either(capitalised, words("any bigint boolean never number object string symbol unknown")),
+      })],
+      ["rs", tokens({
+        c: comment,
+        // a char, not a lifetime: 'a', '\x7f' and '\u{1F600}' close, 'a in &'a str does not
+        // so a char has to close (one character long, nothing to try again) while a string runs to the end of the line
+        s: /"(?:[^"\\]|\\[\s\S])*(?:"|\\?$)|'(?:[^'\\]|\\(?:u\{[\da-fA-F]{1,6}\}|x[\da-fA-F]{2}|.))'/,
+        k: words("as async await break const continue crate dyn else enum extern false fn for if impl in let loop match mod "
+          + "move mut pub ref return self Self static struct super trait true type unsafe use where while"),
+        n: /\b(?:0[xob][\da-fA-F_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?)(?:[iu](?:8|16|32|64|128|size)|f32|f64)?\b/,
+        // a call, a macro (println!, vec![…]) or the name after fn
+        f: /\b[a-z_]\w*(?:!(?=[(\[{])|(?=\())|(?<=\bfn )[a-z_]\w*/,
+        t: either(capitalised, words("bool char f32 f64 i8 i16 i32 i64 i128 isize str u8 u16 u32 u64 u128 usize")),
+      })],
+      ["json", tokens({ c: comment, s: /"(?:[^"\\]|\\[\s\S])*(?:"|\\?$)/, k: words("false null true"), n: number })],
+      ["css", tokens({
+        c: /\/\*[\s\S]*?(?:\*\/|$)|^\s*\*[\s\S]*/,
+        s: quoted,
+        k: /@[\w-]+|!important\b/,
+        n: /#[\da-fA-F]{3,8}(?![\w-])|(?<![\w-])-?(?:\d+(?:\.\d+)?|\.\d+)(?:%|[a-zA-Z]+)?/,
+        f: /(?<![\w-])[a-zA-Z-][\w-]*(?=\()/,
+      })],
+    ]);
+  })();
+  const EXTENSIONS = new Map(Object.entries({
+    js: "js", jsx: "js", mjs: "js", cjs: "js", ts: "js", tsx: "js", mts: "js", cts: "js", rs: "rs", json: "json", css: "css",
+  }));
+  // the language a file's lines are coloured as, from its extension; null: not coloured
+  function langOf(path) {
+    const ext = /\.([^./]+)$/.exec(path);
+    return (ext && EXTENSIONS.get(ext[1].toLowerCase())) || null;
+  }
+  // one line of code as HTML. A line over 2,000 characters is not coloured (B1 Q3): a minified bundle's single
+  // line costs more to colour than the colour is worth
+  function highlight(src, lang) {
+    const re = src.length > 2000 ? null : LANGS.get(lang);
+    if (!re) return escCode(src);
+    let out = "", last = 0, m;
+    while ((m = re.exec(src))) {
+      const kind = Object.keys(m.groups).find((k) => m.groups[k] !== undefined);
+      out += escCode(src.slice(last, m.index)) + (kind === "text" ? escCode(m[0]) : `<span class="${kind}">${escCode(m[0])}</span>`);
+      last = re.lastIndex;
+    }
+    return out + escCode(src.slice(last));
+  }
+  /* ---------- end highlight ---------- */
+  function subjectHTML(s) {
+    const merge = s.match(/^Merge pull request (#\d+) from (\S+)$/);
+    if (merge) return `Merge pull request <span class="prn">${merge[1]}</span> from <span class="from">${esc(merge[2])}</span>`;
+    const cc = s.match(/^([a-z]+(?:\([^)]*\))?!?:)\s(.*)$/);
+    if (cc) return `<span class="pfx">${esc(cc[1])}</span> ${esc(cc[2])}`;
+    return esc(s);
+  }
+  function pathHTML(p) {
+    const i = p.lastIndexOf("/");
+    return i < 0 ? escCode(p) : `<span class="dir">${escCode(p.slice(0, i + 1))}</span>${escCode(p.slice(i + 1))}`;
+  }
+  function hexPoints(cx, cy, r) {
+    const pts = [];
+    for (let k = 0; k < 6; k++) {
+      const a = (Math.PI / 3) * k - Math.PI / 2;
+      pts.push(`${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`);
+    }
+    return pts.join(" ");
+  }
+
+  /* ---------- theme: 白雲母摺 ↔ 黒雲母摺 ---------- */
+  const root = document.documentElement, themeBtn = $("theme");
+  function syncThemeButton() {
+    const dark = root.dataset.theme === "dark";
+    themeBtn.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
+    themeBtn.title = dark ? "黒雲母摺 · black mica — click for white mica" : "白雲母摺 · white mica — click for black mica";
+  }
+  function applyTheme(t) {
+    root.dataset.theme = t;
+    try { localStorage.setItem("kira-v8-theme", t); } catch (e) {}
+    syncThemeButton();
+  }
+  themeBtn.addEventListener("click", () => {
+    const next = root.dataset.theme === "dark" ? "light" : "dark";
+    if (document.startViewTransition && !reduce.matches) document.startViewTransition(() => applyTheme(next));
+    else applyTheme(next);
+  });
+  syncThemeButton();
+
+  /* ---------- the map ---------- */
+  const lanesSvg = $("lanes"), rowsEl = $("rows"), graphEl = $("graph");
+
+  // every edge with its line and a 0° / 45° / 90° route (route rules, combo A): a link (a fork, a merge)
+  // across one or two columns turns once at 45°; across three or more, or wider than it is tall, it runs
+  // a Z along the row boundary beside the station it turns into — no station sits on a boundary, so the
+  // run never grazes one. A merge into a parent whose own line comes straight down into it (main merged
+  // into a branch) takes the gap beside that column instead. Once a link runs along the boundary into a
+  // station, the others on that side join that boundary too (see the end of edges())
+  const zFork = (x1, y1, x2, y2, dir) => {
+    const yb = y2 - ROW / 2;  // the boundary above the parent; down the child's column to the row before it
+    return [[x1, y1], ...(yb - ROW / 2 > y1 ? [[x1, yb - ROW / 2]] : []), [x1 + dir * ROW / 2, yb], [x2 - dir * ROW / 2, yb], [x2, y2]];
+  };
+  const zMerge = (x1, y1, x2, y2, dir) => {
+    const yb = y1 + ROW / 2;  // the boundary below the merge; then down the parent's column
+    return [[x1, y1], [x1 + dir * ROW / 2, yb], [x2 - dir * ROW / 2, yb], [x2, yb + ROW / 2], ...(y2 > yb + ROW / 2 ? [[x2, y2]] : [])];
+  };
+  function edges() {
+    const idx = indexOf(), H = mapHeight(), out = [];
+    // parents with a straight line coming down into them
+    const fed = new Set();
+    commits.forEach((c) => c.p.forEach((pid) => { const j = idx.get(pid); if (j !== undefined && commits[j].lane === c.lane) fed.add(pid); }));
+    commits.forEach((c, i) => {
+      const x1 = X(c.lane), y1 = Y(i);
+      c.p.forEach((pid, k) => {
+        const j = idx.get(pid), p = j === undefined ? null : commits[j];
+        // once: a link that turns once at 45° ("fork" or "merge"), the kind the boundary can take in
+        const push = (br, pts, link = true, once = null) => out.push({ from: c.id, to: p ? p.id : null, br, pts, link, once });
+        // beyond the window: the first parent's line runs on down, a later one goes over to its own track
+        if (!p && k === 0) return push(c.br, [[x1, y1], [x1, H]], false);
+        const x2 = p ? X(p.lane) : X(c.lane + 1), y2 = p ? Y(j) : H;
+        const dx = Math.abs(x2 - x1), dy = y2 - y1, dir = Math.sign(x2 - x1), z = dx >= 3 * LANE || dx > dy;
+        const br = k === 0 ? c.br : p ? p.br : c.p2br;
+        if (dx === 0) return push(br, [[x1, y1], [x2, y2]], false);
+        // a fork turns at the parent's end, a merge at its own
+        if (k === 0) return z ? push(br, zFork(x1, y1, x2, y2, dir)) : push(br, [[x1, y1], [x1, y2 - dx], [x2, y2]], true, "fork");
+        if (p && fed.has(p.id)) {
+          const gx = x2 - dir * LANE / 2, run = Math.abs(gx - x1);
+          // no room for the gap: one straight slant
+          return push(br, run <= dy - LANE / 2 ? [[x1, y1], [gx, y1 + run], [gx, y2 - LANE / 2], [x2, y2]] : [[x1, y1], [x2, y2]]);
+        }
+        if (z) push(br, zMerge(x1, y1, x2, y2, dir));
+        else push(br, [[x1, y1], [x2, y1 + dx], [x2, y2]], true, "merge");
+      });
+    });
+    // where a link runs along the boundary into a station (its last stretch the 45° off that boundary), the
+    // others turning into it from that side join the same boundary instead of crowding it 3px above: from two
+    // columns away a Z, from the next column down to the boundary, 3px along it and the same 45° in. Out of a
+    // station alike. Nothing cascades: the Z a link becomes runs along the same boundary
+    const along = (a, b) => Math.abs(b[0] - a[0]) === ROW / 2 && b[1] - a[1] === ROW / 2;
+    const into = new Set(), outOf = new Set();
+    out.forEach(({ pts }) => {
+      const [a, b] = pts.slice(-2);
+      if (along(a, b)) into.add(`${b} ${Math.sign(a[0] - b[0])}`);
+      if (along(pts[0], pts[1])) outOf.add(`${pts[0]} ${Math.sign(pts[1][0] - pts[0][0])}`);
+    });
+    for (const e of out) {
+      if (!e.once) continue;
+      const [a, , b] = e.pts, dir = Math.sign(b[0] - a[0]), wide = Math.abs(b[0] - a[0]) > LANE;
+      if (e.once === "fork" && into.has(`${b} ${-dir}`)) {
+        e.pts = wide ? zFork(...a, ...b, dir) : [a, [a[0], b[1] - ROW / 2], [b[0] - dir * ROW / 2, b[1] - ROW / 2], b];
+      } else if (e.once === "merge" && outOf.has(`${a} ${dir}`)) {
+        e.pts = wide ? zMerge(...a, ...b, dir) : [a, [a[0] + dir * ROW / 2, a[1] + ROW / 2], [b[0], a[1] + ROW / 2], b];
+      }
+    }
+    return out;
+  }
+
+  function drawMap() {
+    const all = edges();
+    const H = mapHeight();
+    const maxLane = Math.max(...commits.map((c) => c.lane)) + 1;
+    const W = X(maxLane) + 8;
+    // on the scroller, so the end-of-history note lines up with the hash column too
+    $("graph-scroll").style.setProperty("--gutter", `${X(maxLane - 1) + 24}px`);
+    lanesSvg.setAttribute("width", W);
+    lanesSvg.setAttribute("height", H);
+    lanesSvg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+    // lines in the edges' order, but the links fill their places from the farthest reach to the nearest:
+    // where links into or out of one station share a stretch, it shows the nearest column's colour
+    const reach = (e) => Math.abs(e.pts[e.pts.length - 1][0] - e.pts[0][0]);
+    const links = all.filter((e) => e.link).sort((a, b) => reach(b) - reach(a));
+    let nl = 0;
+    const order = all.map((e) => (e.link ? links[nl++] : e));
+    const d = (pts) => `M${pts.map((p) => p.join(" ")).join("L")}`;
+    // a bridge: where a slant or a run along a row boundary crosses a straight stretch of another line, that
+    // stretch has a hole as wide as the upper line's casing, so the upper line runs on unbroken whatever the
+    // drawing order. Lines that join and share a stretch never cut each other
+    const straight = [];
+    order.forEach((e, n) => e.pts.forEach((b, s) => {
+      const a = e.pts[s - 1];
+      if (a && a[0] === b[0]) straight.push({ n, x: a[0], top: Math.min(a[1], b[1]), bottom: Math.max(a[1], b[1]) });
+    }));
+    const holes = new Map();  // a line's place in the order → the pieces of casing cut out of it
+    order.forEach((e, n) => e.pts.forEach((b, s) => {
+      const a = e.pts[s - 1];
+      if (!a || a[0] === b[0]) return;
+      const lo = Math.min(a[0], b[0]), hi = Math.max(a[0], b[0]), at = (x) => a[1] + ((x - a[0]) / (b[0] - a[0])) * (b[1] - a[1]);
+      for (const v of straight) {
+        if (v.n === n || v.x <= lo || v.x >= hi || at(v.x) <= v.top || at(v.x) >= v.bottom) continue;
+        // ±6 along the slant is enough to cross the lower line's width even at 45°
+        const x0 = Math.max(lo, v.x - 6), x1 = Math.min(hi, v.x + 6);
+        holes.set(v.n, `${holes.get(v.n) || ""}<path d="M${x0} ${at(x0)}L${x1} ${at(x1)}" stroke="#000" stroke-width="${LW + 3.5}"/>`);
+      }
+    }));
+    // a sheet-coloured casing under every line: on a highlighted row it is the halo, at a bridge the gap
+    const casing = (e) => `<path d="${d(e.pts)}" fill="none" stroke="var(--sheet)" stroke-width="${LW + 3.5}" stroke-linejoin="round"/>`;
+    const line = (e, n) => `<path d="${d(e.pts)}" fill="none" stroke="${lc(e.br)}" stroke-width="${LW}" stroke-linejoin="round" stroke-linecap="round"${holes.has(n) ? ` mask="url(#hole-${n})"` : ""}/>`;
+    const masks = [...holes].map(([n, cut]) => `<mask id="hole-${n}" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="#fff"/>${cut}</mask>`).join("");
+
+    const touching = new Map(commits.map((c) => [c.id, new Set([c.br])]));
+    const hasChild = new Set();
+    all.forEach((e) => {
+      touching.get(e.from).add(e.br);
+      if (e.to) { touching.get(e.to).add(e.br); hasChild.add(e.to); }
+    });
+
+    let stations = "";
+    commits.forEach((c, i) => {
+      const cx = X(c.lane), cy = Y(i), color = lc(c.br);
+      if (c.id === headId) {
+        // you are here: a gold mica flake, announced once with a gold ripple
+        stations += `<circle class="${firstPaint ? "here-pulse" : ""}" cx="${cx}" cy="${cy}" r="8" fill="none" stroke="var(--gold-leaf)" stroke-width="2" opacity="0"/>`;
+        stations += `<circle cx="${cx}" cy="${cy}" r="10.5" fill="var(--sheet)" opacity="0.92"/>`;
+        stations += `<polygon points="${hexPoints(cx, cy, 8.4)}" fill="var(--gold-leaf)" stroke="var(--flake-edge)" stroke-width="1.3" stroke-linejoin="round"/>`;
+        stations += `<polygon points="${cx},${cy - 8.4} ${cx},${cy} ${(cx + 7.27).toFixed(2)},${(cy - 4.2).toFixed(2)}" fill="oklch(1 0 0 / 0.5)"/>`;
+      } else if (touching.get(c.id).size > 1) {
+        stations += `<circle cx="${cx}" cy="${cy}" r="5.6" fill="var(--sheet-hi)" stroke="var(--l-trunk)" stroke-width="2.2"/>`;
+      } else if (!hasChild.has(c.id) || c.p.length === 0) {
+        // a terminus: the top of a line, or a root commit at its bottom (a line that runs on fades out instead)
+        stations += `<path d="M${cx - 6.5} ${cy}H${cx + 6.5}" stroke="${color}" stroke-width="${LW}" stroke-linecap="round"/>`;
+      } else {
+        stations += `<path d="M${cx} ${cy}H${cx + 7.5}" stroke="${color}" stroke-width="${LW}" stroke-linecap="round"/>`;
+      }
+    });
+    // history goes on past the window: the lines that run on fade out under the last row
+    let tracks = `<g>${order.map(casing).join("")}</g><g>${order.map(line).join("")}</g>`;
+    if (masks) tracks = `<defs>${masks}</defs>${tracks}`;
+    if (walk.truncated) {
+      const from = Y(commits.length - 1) + 11;
+      tracks = `<defs><linearGradient id="run-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>`
+        + `<mask id="run-on" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect width="${W}" height="${from}" fill="#fff"/><rect y="${from}" width="${W}" height="${H - from}" fill="url(#run-g)"/></mask></defs>`
+        + `<g mask="url(#run-on)">${tracks}</g>`;
+    }
+    lanesSvg.innerHTML = `${tracks}<g>${stations}</g><g id="sel-ring"></g>`;
+    firstPaint = false;
+    drawSelectionRing();
+  }
+
+  function drawSelectionRing() {
+    const ring = $("sel-ring");
+    if (!ring) return;
+    const i = indexOf().get(selectedId);
+    if (i === undefined) { ring.innerHTML = ""; return; }
+    const c = commits[i];
+    const r = c.id === headId ? 12.5 : 9.5;
+    ring.innerHTML = `<circle cx="${X(c.lane)}" cy="${Y(i)}" r="${r}" fill="none" stroke="var(--line)" stroke-width="1.75"/>`;
+  }
+
+  function refHTML(r) {
+    const name = r.label === r.n ? `<span>${esc(r.n)}</span>` : `<span title="${esc(r.n)}">${esc(r.label)}</span>`;
+    if (r.k === "head") return `<span class="ref head">${roundel(r.br)}${name}</span>`;
+    if (r.k === "local") return `<span class="ref local">${roundel(r.br, { lodge: r.lodge })}${name}</span>`;
+    if (r.k === "tag") return `<span class="ref tag"><svg aria-hidden="true"><use href="#i-diamond"/></svg>${name}</span>`;
+    return `<span class="ref remote">${roundel(r.br, { hollow: true, lodge: r.lodge })}${name}</span>`;
+  }
+
+  // a row's refs, HEAD first, in a character budget (mono type, so characters are widths and the cut is
+  // the same wherever it is computed): one name keeps at most REF_CAP characters; once the names shown
+  // pass REF_BUDGET the rest fold into "+N". A branch's own remote-tracking ref at the same station says
+  // only where it is ("origin": same line, so same letter and colour) — after a push that pair is the
+  // commonest row, and two copies of one long name would fill it. A HEAD branch with no line of its own
+  // yet still has a letter and colour of its own (route rules decision D), and its remote takes them too
+  const REF_CAP = 32, REF_BUDGET = 40;
+  const cutName = (s) => (s.length <= REF_CAP ? s : `${s.slice(0, REF_CAP - 1)}…`);
+  // HEAD first, each branch followed by its own remote-tracking refs, then the other remotes, then tags;
+  // a remote's owner is the branch on the same line that it tracks by name
+  function orderedRefs(c) {
+    const list = refs[c.id] || [];
+    // a detached HEAD names itself on the line it stopped at
+    const head = shell.detached && c.id === headId ? [{ k: "head", n: "HEAD", br: c.br }] : [];
+    const branchesHere = [...head, ...list.filter((r) => r.k === "head"), ...list.filter((r) => r.k === "local")];
+    const ownerOf = (r) => branchesHere.find((l) => l.br === r.br && r.n.endsWith(`/${l.n}`));
+    const remotes = list.filter((r) => r.k === "remote").map((r) => ({ ...r, owner: ownerOf(r) }));
+    const ordered = [];
+    for (const b of branchesHere) ordered.push(b, ...remotes.filter((r) => r.owner === b));
+    ordered.push(...remotes.filter((r) => !r.owner), ...list.filter((r) => r.k === "tag"));
+    return ordered;
+  }
+  function rowRefs(c) {
+    const shown = [], folded = [];
+    let used = 0;
+    for (const r of orderedRefs(c)) {
+      const label = r.owner ? r.n.slice(0, r.n.length - r.owner.n.length - 1) : cutName(r.n);
+      if (folded.length || (shown.length && used + label.length > REF_BUDGET)) folded.push(r);
+      else { shown.push({ ...r, label }); used += label.length; }
+    }
+    const more = folded.length ? `<span class="ref more" title="${esc(folded.map((r) => r.n).join("\n"))}">+${folded.length}</span>` : "";
+    return shown.map(refHTML).join("") + more;
+  }
+  // what a screen reader hears after the subject: every ref at the station by its full name, in the
+  // order shown, the folded ones too
+  const spokenRefs = (c) => orderedRefs(c).map((r) =>
+    r.k === "tag" ? `tag ${r.n}` : r.k !== "head" ? r.n : r.n === "HEAD" ? "HEAD (detached)" : `${r.n} (HEAD)`).join(", ");
+
+  function renderRows() {
+    rowsEl.innerHTML = commits.map((c) => {
+      const sel = c.id === selectedId;
+      const spoken = spokenRefs(c);
+      return `<div class="row${c.p.length > 1 ? " merge" : ""}" role="option" id="r-${c.id}" data-id="${c.id}" tabindex="${sel ? 0 : -1}" aria-selected="${sel}" aria-label="Commit ${c.id}: ${esc(c.s)}${spoken ? `. Refs: ${esc(spoken)}` : ""}">
+        <span class="hash">${c.id}</span>
+        <span class="subject">${subjectHTML(c.s)}</span>
+        <span class="refs">${rowRefs(c)}</span>
+      </div>`;
+    }).join("");
+    if (!commits.some((c) => c.id === selectedId)) rowsEl.firstElementChild.tabIndex = 0;
+  }
+  // under the last row of a truncated window: how much is loaded, and where you are if it isn't in it
+  function renderEnd() {
+    const end = $("graph-end");
+    end.hidden = !walk.truncated || walk.loading || commits.length === 0;
+    if (end.hidden) return;
+    let html = `<p>Showing the latest ${commits.length.toLocaleString("en-US")} commits · older history isn't loaded</p>`;
+    if (hereBeyond()) {
+      const cur = current();
+      html += `<p class="here"><svg class="flk" aria-hidden="true"><use href="#flake"/></svg><span><b>You are further down the line.</b> ${roundel(cur.br)}</span><span>${esc(cur.n)} is older than these commits.</span></p>`;
+    }
+    end.innerHTML = html;
+  }
+  // HEAD is on a branch whose tip is older than the window (route rules §3: head.line = null)
+  const hereBeyond = () => !shell.detached && !shell.unborn && headId === null;
+
+  // opening a repo: a blank line with stops, and rows of bars, until git_get_graph answers
+  function drawLoading() {
+    const widths = [64, 47, 72, 55, 68, 41, 59, 74, 50, 62, 45, 70, 53, 66];
+    const H = widths.length * ROW;
+    let track = `<path d="M${X(0)} ${Y(0)}V${H}" stroke="var(--band)" stroke-width="${LW}" stroke-linecap="round"/>`;
+    widths.forEach((_, i) => { track += `<path d="M${X(0)} ${Y(i)}H${X(0) + 7.5}" stroke="var(--band)" stroke-width="${LW}" stroke-linecap="round"/>`; });
+    $("graph-loading").innerHTML = `<svg width="${X(0) + 12}" height="${H}" aria-hidden="true">${track}</svg>`
+      + widths.map((w) => `<div class="sk-row"><i></i><i style="width:${w}%"></i></div>`).join("");
+  }
+
+  function renderGraph() {
+    const empty = !walk.loading && commits.length === 0;
+    graphEl.hidden = walk.loading || empty;
+    $("graph-loading").hidden = !walk.loading;
+    $("graph-empty").hidden = !empty;
+    renderEnd();
+    if (walk.loading) return drawLoading();
+    if (empty) return;
+    drawMap(); renderRows();
+  }
+
+  function select(id, { focus = false } = {}) {
+    selectedId = id;
+    rowsEl.querySelectorAll(".row").forEach((r) => {
+      const on = r.dataset.id === id;
+      r.setAttribute("aria-selected", on);
+      r.tabIndex = on ? 0 : -1;
+    });
+    // no row selected (Esc, or a state that opens with nothing selected): the row with the focus, or else
+    // the first, keeps the tab stop, or Tab could never get back into the list
+    if (!rowsEl.querySelector('.row[tabindex="0"]')) {
+      const focused = rowsEl.contains(document.activeElement) ? document.activeElement.closest(".row") : null;
+      const stop = focused || rowsEl.firstElementChild;
+      if (stop) stop.tabIndex = 0;
+    }
+    drawSelectionRing();
+    if (id) {
+      const el = $(`r-${id}`);
+      if (focus) el.focus({ preventScroll: false });
+      el.scrollIntoView({ block: "nearest" });
+    }
+    renderDiff();
+  }
+  rowsEl.addEventListener("click", (e) => {
+    const row = e.target.closest(".row");
+    if (row) select(row.dataset.id, { focus: true });
+  });
+  rowsEl.addEventListener("keydown", (e) => {
+    const row = e.target.closest(".row");
+    if (!row) return;
+    const i = indexOf().get(row.dataset.id);
+    let next = null;
+    if (e.key === "ArrowDown") next = commits[Math.min(i + 1, commits.length - 1)];
+    else if (e.key === "ArrowUp") next = commits[Math.max(i - 1, 0)];
+    else if (e.key === "Home") next = commits[0];
+    else if (e.key === "End") next = commits[commits.length - 1];
+    else if (e.key === "Enter" || e.key === " ") next = commits[i];
+    else if (e.key === "Escape") { e.preventDefault(); select(null); row.focus(); return; }
+    if (next) { e.preventDefault(); hideTip(); select(next.id, { focus: true }); }
+  });
+
+  /* ---------- station board tooltip (300ms intent delay) ---------- */
+  const tip = $("tip"), scroller = $("graph-scroll");
+  let tipTimer = null, tipFor = null;
+  function showTip(row) {
+    const c = commits[indexOf().get(row.dataset.id)];
+    tip.style.setProperty("--tl", lc(c.br));
+    $("tip-subject").textContent = c.s;
+    $("tip-author").textContent = "tznthou";
+    $("tip-date").textContent = c.t;
+    $("tip-oid").textContent = fullOid(c.id);
+    const pane = tip.parentElement.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    let left = r.left - pane.left + X(c.lane) + 14;
+    let top = r.bottom - pane.top + 4;
+    tip.style.left = "0px"; tip.style.top = "0px";
+    tip.classList.add("show");
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    if (top + th > pane.height - 8) top = r.top - pane.top - th - 4;
+    if (left + tw > pane.width - 8) left = pane.width - tw - 8;
+    tip.style.left = `${left}px`; tip.style.top = `${top}px`;
+    tipFor = row.dataset.id;
+  }
+  function hideTip() { clearTimeout(tipTimer); tip.classList.remove("show"); tipFor = null; }
+  rowsEl.addEventListener("mouseover", (e) => {
+    const row = e.target.closest(".row");
+    if (!row || row.dataset.id === tipFor) return;
+    clearTimeout(tipTimer);
+    tip.classList.remove("show");
+    tipTimer = setTimeout(() => showTip(row), 300);
+  });
+  rowsEl.addEventListener("mouseleave", hideTip);
+  scroller.addEventListener("scroll", hideTip, { passive: true });
+
+  /* ---------- the line legend ---------- */
+  // the graph is still out: a roundel's colour and letter come from the route map, so a skeleton dot stands in
+  // for it; the names are already read (Phase 5 Q-L)
+  const SK_ROUNDEL = `<span class="sk sk-rd" aria-hidden="true"><i></i></span>`;
+  function renderBranches() {
+    const list = $("branch-list");
+    // opening a repo: git_list_branches has not answered
+    if (panel.branches === "loading") {
+      list.innerHTML = [54, 38, 66, 47].map((w) => `<li class="sk sk-branch" aria-hidden="true"><i></i><i style="width:${w}%"></i></li>`).join("");
+      list.setAttribute("aria-label", "Loading branches");
+      return;
+    }
+    list.setAttribute("aria-label", "Branches");
+    const local = branches.filter((b) => !b.remote), remote = branches.filter((b) => b.remote);
+    const unpushed = (n) => `${plural(n, "commit")} not pushed`, unpulled = (n) => `${plural(n, "commit")} on origin not pulled`;
+    // the branch you are on: gold leaf for what is yours, an outline for what is not yet
+    const yours = () => (shell.upstream && ahead > 0 ? `<span class="b-stats" title="${unpushed(ahead)}">↑${ahead}</span>` : "")
+      + (shell.upstream && shell.behind > 0 ? `<span class="b-stats in" title="${unpulled(shell.behind)}">↓${shell.behind}</span>` : "");
+    // the others in plain grey: the gold leaf stays with your line; no remote means no upstream to count against
+    const others = (b) => {
+      const a = b.ahead || 0, d = b.behind || 0;
+      if (!shell.remote || (!a && !d)) return "";
+      const title = [a && unpushed(a), d && unpulled(d)].filter(Boolean).join(" · ");
+      return `<span class="b-stats plain" title="${title}">${[a && `↑${a}`, d && `↓${d}`].filter(Boolean).join(" ")}</span>`;
+    };
+    const blocked = busy ? `Disabled while ${VERB[busy]}` : null;
+    const cur = current();
+    const row = (b) => {
+      // a branch beyond the window wears its own line once you are on it (route rules decision D), and so does its remote
+      const beyond = !!b.beyond && !(b.current || (b.remote && cur && b.n === `origin/${cur.n}`));
+      const title = b.remote ? "Remote branch (read-only)" : blocked || (b.current ? `Current branch: ${b.n}` : `Switch to ${b.n}`);
+      return `<li class="branch${b.current ? " current" : ""}${b.remote ? " remote" : ""}">
+        <button class="branch-btn" data-branch="${esc(b.n)}"${b.current ? ' aria-current="true"' : ""}${b.remote || blocked ? ' aria-disabled="true"' : ""} title="${esc(title)}">
+          ${walk.loading ? SK_ROUNDEL : roundel(b.br, { hollow: !!b.remote, lodge: !!b.lodge, beyond })}
+          <span class="b-name">${esc(b.n)}</span>
+          ${b.pruned ? `<span class="b-tag" title="Upstream is set, but origin/${esc(b.n)} no longer exists">pruned</span>` : ""}
+          ${b.remote ? "" : b.current ? yours() : others(b)}
+        </button>
+        ${!b.remote && !b.current ? `<button class="b-del" aria-label="Delete branch ${esc(b.n)}" title="Delete ${esc(b.n)}"><svg aria-hidden="true"><use href="#i-x"/></svg></button>` : ""}
+      </li>`;
+    };
+    // a read you asked for that failed (opening, Refresh, after a checkout) lists nothing until a read works; a
+    // refresh in the background that fails keeps the old list (Phase 5 Q-B)
+    list.innerHTML = panel.branches === "error"
+      ? `<li class="empty-line"><span role="alert"><b>Couldn't read branches.</b></span> <button class="text-btn" type="button" id="branches-retry">Retry</button></li>`
+      // a detached HEAD has no row of its own: the sign says where it is
+      : (local.length ? local.map(row).join("") : `<li class="empty-line">No branches yet</li>`)
+        + (remote.length ? `<li class="group-label">Remote</li>` + remote.map(row).join("") : "");
+    const create = $("create-branch");
+    create.disabled = !!busy;
+    create.title = blocked || "Create branch";
+  }
+
+  /* ---------- your line: checkout moves you, the accent follows ---------- */
+  const current = () => branches.find((b) => b.current);
+  // detached: you are on whichever line the HEAD station belongs to (route rules §2.2, §6.1);
+  // unborn: on the branch HEAD names, which has no commit yet
+  const yourLine = () => (shell.detached ? commits[indexOf().get(headId)].br : shell.unborn ? shell.unborn.br : current().br);
+  function syncLine() {
+    // opening a repo keeps the line you were on until the graph arrives; from the start page that is the trunk
+    root.dataset.line = walk.loading ? "trunk" : (LINE[yourLine()] || "--l-trunk").slice(4);
+  }
+  function renderYouAre() {
+    const br = yourLine(), det = shell.detached, u = shell.unborn;
+    // "you are here" comes from the route map, so it waits for the graph
+    $("youare").hidden = walk.loading;
+    $("you-lbl").textContent = det ? "Detached at" : "You are on";
+    $("you-rd").style.setProperty("--l", lc(br));
+    $("you-rd").textContent = LETTER[br] || "?";
+    $("you-bn").textContent = det ? headId : u ? u.n : current().n;
+    $("you-bn").classList.toggle("mono", det);
+    $("you-note").hidden = !u;
+    $("youare").title = det ? `HEAD is detached at ${headId} — no branch is checked out` : u ? `${u.n} has no commits yet` : "Current branch";
+  }
+  function tipOf(name) {
+    for (const [id, list] of Object.entries(refs)) {
+      if (list.some((r) => (r.k === "local" || r.k === "head") && r.n === name)) return id;
+    }
+    return null;
+  }
+  // route rules decision D: a HEAD branch with no line of its own — a lodger, or one older than the window —
+  // still has a letter and a colour of its own, and its own remote wears them too; once HEAD leaves it is a
+  // lodger again. Letters and colours are computeRoutes' (state_routes.mjs lodger-checkout, beyond-checkout):
+  // HEAD's letter comes first, so on feat/t9d-watcher it takes T and feat/t15g-graph-density becomes G
+  const OWN = {
+    "release/0.1": { br: "rel", line: "--l-shinsha", letter: "A" },
+    "feat/t9d-watcher": { br: "t9d", line: "--l-shinsha", letter: "T", reletter: { t15g: "G" } },
+  };
+  let ownLine = null;  // { name, was: { br, letters } } while HEAD is on a branch with no line of its own
+  function wearOwnLine(name) {
+    if (ownLine) {
+      const { name: n, was } = ownLine;
+      for (const r of [...branches, ...Object.values(refs).flat()]) {
+        if (r.n === n || r.n === `origin/${n}`) Object.assign(r, { br: was.br, lodge: was.lodge });
+      }
+      Object.assign(LETTER, was.letters);
+      ownLine = null;
+    }
+    const own = OWN[name];
+    const target = branches.find((b) => b.n === name && !b.remote);
+    if (!own || !(target.lodge || target.beyond)) return;
+    ownLine = { name, was: { br: target.br, lodge: target.lodge, letters: Object.fromEntries([own.br, ...Object.keys(own.reletter || {})].map((k) => [k, LETTER[k]])) } };
+    LINE[own.br] = own.line;
+    Object.assign(LETTER, { [own.br]: own.letter }, own.reletter);
+    for (const r of [...branches, ...Object.values(refs).flat()]) {
+      if (r.n === name || r.n === `origin/${name}`) Object.assign(r, { br: own.br, lodge: false });
+    }
+  }
+  // a branch whose tip is beyond the window can be checked out too: HEAD is then further down the line
+  const branchBtn = (name) => () => document.querySelector(`#branch-list .branch-btn[data-branch="${CSS.escape(name)}"]`);
+  function checkout(name) {
+    const target = branches.find((b) => b.n === name && !b.remote), tip = tipOf(name);
+    if (!target || target.current || (!tip && !target.beyond) || busy) return;
+    clearNotice();
+    // the app closes its checkout dialog on failure too, so the notice is not under the dialog's veil (Phase 0b P5 §3)
+    if (takeFail("checkout")) return showNotice("Checkout failed.", "Commit or stash first.", branchBtn(name));
+    for (const list of Object.values(refs)) {
+      for (const r of list) {
+        if (r.k === "head") r.k = "local";
+        else if (r.k === "local" && r.n === name) r.k = "head";
+      }
+    }
+    const was = current();
+    if (was) Object.assign(was, { ahead, behind: shell.behind, upstream: shell.upstream });
+    branches.forEach((b) => (b.current = b === target));
+    ahead = target.ahead || 0;
+    shell.behind = target.behind || 0;
+    shell.upstream = target.upstream !== false;
+    shell.detached = false;
+    headId = tip;
+    wearOwnLine(name);
+    firstPaint = true;
+    syncLine(); renderYouAre(); renderGraph(); updateAhead();
+  }
+  // check out a commit instead of a branch: HEAD leaves every line's tip
+  function detach(id) {
+    const was = current();
+    if (was) Object.assign(was, { ahead, behind: shell.behind, upstream: shell.upstream, current: false });
+    for (const list of Object.values(refs)) for (const r of list) if (r.k === "head") r.k = "local";
+    ahead = 0; shell.behind = 0; shell.detached = true;
+    headId = id;
+    wearOwnLine(null);
+    firstPaint = true;
+    syncLine(); renderYouAre(); renderGraph(); updateAhead();
+  }
+  $("branch-list").addEventListener("click", (e) => {
+    // a Retry that worked: focus stays in the area it read again (in the app, a read that fails again hands it
+    // to the new Retry)
+    if (e.target.closest("#branches-retry")) { panel.branches = "ok"; renderBranches(); $("branch-list").focus(); return; }
+    const b = e.target.closest(".branch-btn");
+    if (b && !b.closest(".remote")) checkout(b.dataset.branch);
+  });
+
+  /* ---------- staging ---------- */
+  function fileRow(f, isStaged) {
+    const i = f.p.lastIndexOf("/");
+    const dir = i < 0 ? "" : f.p.slice(0, i + 1), base = f.p.slice(i + 1);
+    return `<li class="file">
+      <span class="fname" title="${esc(f.p)}"><span class="dir">${esc(dir)}</span><span class="base">${esc(base)}</span></span>
+      <span class="badge ${f.s}" title="${{ M: "Modified", A: "Added", D: "Deleted" }[f.s]}">${f.s}</span>
+      <button class="stage-btn" data-path="${esc(f.p)}" data-op="${isStaged ? "unstage" : "stage"}" aria-label="${isStaged ? "Unstage" : "Stage"} ${esc(f.p)}">
+        <svg aria-hidden="true"><use href="#i-${isStaged ? "minus" : "plus"}"/></svg>
+      </button>
+    </li>`;
+  }
+  const CONFLICT = { UU: "Both modified", AA: "Both added", DU: "Deleted by us", UD: "Deleted by them" };
+  // a conflicted file has no stage button: Kira has no resolver, and staging it here would mark it resolved
+  function conflictRow(f) {
+    const i = f.p.lastIndexOf("/");
+    return `<li class="file">
+      <span class="fname" title="${esc(f.p)}"><span class="dir">${esc(f.p.slice(0, i + 1))}</span><span class="base">${esc(f.p.slice(i + 1))}</span></span>
+      <span class="badge C" title="${CONFLICT[f.c]}">${f.c}</span><span class="stage-gap" aria-hidden="true"></span>
+    </li>`;
+  }
+  const strip = (title, detail) => `<div class="strip"><svg aria-hidden="true"><use href="#i-warn"/></svg><span><b>${title}</b> ${detail}</span></div>`;
+  // what the backend held back, at the top of a commit's diff or a pull request's files: the files past the first 500
+  // (GitHub refuses a pull request's diff of more than 300 files, so only a commit's, in practice), and the files the
+  // display limit kept back (B1), each of which says so in its own cell too
+  const limitStrips = (files, cut, whole) => {
+    const kept = files.filter((f) => f.omitted), big = kept.filter((f) => f.omitted.reason === "File").length;
+    const why = [big && `${big} too large`, kept.length - big && `${kept.length - big} over the display limit`].filter(Boolean).join(", ");
+    return (cut ? strip(`Showing the first ${files.length} files.`, `This ${whole} changes more.`) : "")
+      + (kept.length ? strip(`${kept.length} of ${plural(files.length, "file")} not shown.`, `${why}.`) : "");
+  };
+  const skFiles = (widths) => widths.map((w) => `<li class="sk sk-file" aria-hidden="true"><i style="width:${w}%"></i><i></i></li>`).join("");
+  function renderStaging() {
+    const error = panel.changes === "error", loading = panel.changes === "loading";
+    // a status read that failed lists nothing: the old list would say a file you just staged is not staged
+    $("stage-lists").hidden = error;
+    $("changes-state").hidden = !error;
+    $("changes-state").innerHTML = !error ? "" : `<svg class="mark" aria-hidden="true"><use href="#i-bad"/></svg>
+      <p><b>Couldn't read your changes.</b></p><p class="hint">Nothing is listed until a read works.</p>
+      <button class="btn" type="button" id="changes-retry">Retry</button>`;
+    $("conflicted").innerHTML = error || loading || !conflicted.length ? "" : `
+      <div class="stage-head"><h3>Conflicted <span class="n">${conflicted.length}</span></h3><span class="rule"></span></div>
+      ${strip(`${plural(conflicted.length, "file")} ${conflicted.length === 1 ? "has" : "have"} conflicts.`, "Fix them in your editor, then <code>git add</code> them.")}
+      <ul class="files">${conflicted.map(conflictRow).join("")}</ul>`;
+    if (loading) {
+      // opening a repo: git_get_status has not answered, so there are no counts to give yet
+      $("staged").innerHTML = skFiles([58, 44]);
+      $("unstaged").innerHTML = skFiles([66, 38, 52]);
+    } else {
+      $("staged").innerHTML = staged.length ? staged.map((f) => fileRow(f, true)).join("") : `<li class="empty-line">No staged changes</li>`;
+      $("unstaged").innerHTML = unstaged.length ? unstaged.map((f) => fileRow(f, false)).join("") : `<li class="empty-line">No changes</li>`;
+    }
+    $("unstaged-note").innerHTML = loading || !unstagedCut ? "" : strip("Only the first 5,000 files are listed.", "Add a .gitignore to leave out build output.");
+    $("n-staged").textContent = loading ? "" : staged.length;
+    $("n-unstaged").textContent = loading ? "" : unstagedCut ? "5,000+" : unstaged.length;
+    $("unstage-all").disabled = staged.length === 0 || !!busy || loading;
+    // staging all would stage files the list does not show
+    $("stage-all").disabled = unstaged.length === 0 || !!busy || loading || unstagedCut;
+    $("stage-all").title = unstagedCut ? "Not every file is listed, so not all at once" : "";
+    syncCommitButton();
+  }
+  // a stage op that fails says so in the sign; dismissing it puts the focus back on the button you pressed
+  const stageBtn = (path, op) => () => document.querySelector(`.stage-btn[data-path="${CSS.escape(path)}"][data-op="${op}"]`);
+  const VERB_STAGE = { stage: "Stage failed.", unstage: "Unstage failed.", "stage-all": "Stage all failed.", "unstage-all": "Unstage all failed." };
+  const stageFailed = (op, from) => {
+    clearNotice();
+    if (!takeFail("stage")) return false;
+    showNotice(VERB_STAGE[op], "", from);
+    return true;
+  };
+  document.querySelector(".stage-scroll").addEventListener("click", (e) => {
+    if (e.target.closest("#changes-retry")) { panel.changes = "ok"; renderStaging(); $("panel-changes").focus(); return; }
+    const b = e.target.closest(".stage-btn");
+    if (!b) return;
+    if (stageFailed(b.dataset.op, stageBtn(b.dataset.path, b.dataset.op))) return;
+    const from = b.dataset.op === "stage" ? unstaged : staged;
+    const to = b.dataset.op === "stage" ? staged : unstaged;
+    const k = from.findIndex((f) => f.p === b.dataset.path);
+    if (k >= 0) to.push(...from.splice(k, 1));
+    byPath(to);
+    renderStaging();
+  });
+  // the backend re-reads status after every stage op, and libgit2 sorts it by path
+  const byPath = (list) => list.sort((x, y) => (x.p < y.p ? -1 : x.p > y.p ? 1 : 0));
+  $("stage-all").addEventListener("click", () => { if (stageFailed("stage-all", $("stage-all"))) return; staged.push(...unstaged.splice(0)); byPath(staged); renderStaging(); });
+  $("unstage-all").addEventListener("click", () => { if (stageFailed("unstage-all", $("unstage-all"))) return; unstaged.push(...staged.splice(0)); byPath(unstaged); renderStaging(); });
+
+  const msg = $("msg"), commitBtn = $("commit");
+  function syncCommitButton() {
+    // a half-resolved merge must not be committed; nor can anything be while the status is unknown
+    commitBtn.disabled = staged.length === 0 || msg.value.trim() === "" || !!busy || conflicted.length > 0 || panel.changes !== "ok";
+    commitBtn.textContent = busy === "commit" ? "Committing…" : "Commit";
+    if (conflicted.length) commitBtn.title = "Resolve conflicts first";
+    else commitBtn.removeAttribute("title");
+  }
+  msg.addEventListener("input", syncCommitButton);
+  msg.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $("commit-form").requestSubmit(); }
+  });
+  $("commit-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (commitBtn.disabled) return;
+    clearNotice();
+    setBusy("commit");
+    setTimeout(() => {
+      // GIT_IDENTITY_MISSING: the message stays, as after any failed commit
+      if (takeFail("commit")) { setBusy(null); return showNotice("Commit failed.", "Set your git name and email.", commitBtn); }
+      const id = Math.random().toString(16).slice(2, 9).padEnd(7, "0");
+      const first = msg.value.trim().split("\n")[0];
+      // detached: no branch moves; the new station opens a line of its own beside the map. So does a
+      // branch that has no commit of its own yet; an unborn branch's first commit is the root of the trunk
+      const cur = current(), at = commits[indexOf().get(headId)], u = shell.unborn;
+      if (refs[headId]) {
+        refs[headId] = refs[headId].filter((r) => r.k !== "head");
+        if (!refs[headId].length) delete refs[headId];
+      }
+      const own = cur && commits.some((c) => c.br === cur.br);
+      const lane = own ? at.lane : u ? 0 : Math.max(...commits.map((c) => c.lane)) + 1;
+      commits.unshift({ id, lane, br: u ? u.br : cur ? cur.br : at.br, s: first, p: headId ? [headId] : [], t: "2026/10/03 14:31" });
+      if (u) { branches.push({ n: u.n, br: u.br, current: true }); shell.unborn = null; }
+      const now = current();
+      if (now) { refs[id] = [{ k: "head", n: now.n, br: now.br }]; ahead += 1; }
+      diffs[id] = [{ p: staged[0].p, s: staged[0].s, hunks: diffs.c9e41f2[1].hunks }];
+      headId = id; staged = []; msg.value = "";
+      firstPaint = true;
+      setBusy(null);
+      renderGraph(); renderBranches(); renderStaging(); updateAhead(); renderYouAre(); syncLine();
+      select(id);
+      const note = $("commit-note");
+      note.textContent = `Committed ${id}`;
+      note.classList.add("show");
+      setTimeout(() => note.classList.remove("show"), 2400);
+    }, 520);
+  });
+
+  /* ---------- toolbar ops ---------- */
+  const pullBtn = $("pull"), pushBtn = $("push"), refreshBtn = $("refresh"), carriage = $("carriage");
+  const VERB = { commit: "committing", push: "pushing", pull: "pulling", refresh: "refreshing" };
+  // every disabled button says why in its title; reasons in the app's order (PushPullBar):
+  // busy → unborn → detached → no remote → no upstream. Push never fires with nothing to send
+  function renderToolbar() {
+    const cur = current(), op = busy;
+    const blocked = op ? `Disabled while ${VERB[op]}`
+      : shell.unborn ? "No commits yet"
+      : shell.detached ? "Detached HEAD — check out a branch first"
+      : !shell.remote ? "No remote configured"
+      : shell.unknown ? "Upstream status unknown — Refresh to retry" : null;
+    const tracked = shell.upstream && !shell.detached && !shell.unknown;
+    const publish = !shell.upstream && !shell.detached && !shell.unborn && shell.remote && !shell.unknown;
+
+    pullBtn.disabled = !!blocked || !shell.upstream;
+    pullBtn.title = op === "pull" ? "Pulling from origin…"
+      : blocked || (shell.upstream ? "Pull from origin" : "No upstream — publish this branch first");
+    pullBtn.querySelector(".label").textContent = op === "pull" ? "Pulling…" : "Pull";
+    const behindEl = $("behind");
+    behindEl.textContent = shell.behind;
+    behindEl.style.display = tracked && shell.behind > 0 ? "" : "none";
+
+    // a first push publishes the branch and sets its upstream; while it runs the label is the percentage
+    pushBtn.disabled = !!blocked || (shell.upstream && ahead === 0);
+    pushBtn.title = op === "push" ? (publish ? "Publishing to origin…" : "Pushing to origin…")
+      : blocked || (publish ? `Publish ${cur.n} to origin and track it` : ahead === 0 ? "Nothing to push" : "Push to origin");
+    if (op !== "push") pushBtn.querySelector(".label").textContent = publish ? "Publish" : "Push";
+    const aheadEl = $("ahead");
+    aheadEl.textContent = ahead;
+    aheadEl.style.display = tracked && ahead > 0 ? "" : "none";
+
+    refreshBtn.disabled = !!op;
+    refreshBtn.title = op && op !== "refresh" ? `Disabled while ${VERB[op]}` : "Reload commit graph and working tree status";
+    refreshBtn.querySelector(".label").textContent = op === "refresh" ? "Refreshing…" : "Refresh";
+    refreshBtn.classList.toggle("spin", op === "refresh");
+  }
+  function setBusy(op) {
+    busy = op;
+    renderToolbar();
+    $("unstage-all").disabled = staged.length === 0 || !!op;
+    $("stage-all").disabled = unstaged.length === 0 || !!op || unstagedCut;
+    syncCommitButton();
+    // the legend waits too, and says why in each row's title; the rows do not fade, so a background
+    // refresh does not flash the sidebar
+    renderBranches();
+  }
+  function updateAhead() {
+    renderToolbar();
+    renderBranches();
+  }
+  refreshBtn.addEventListener("click", () => {
+    clearNotice();
+    setBusy("refresh");
+    setTimeout(() => {
+      setBusy(null);
+      if (takeFail("refresh")) return showNotice("Refresh failed.", "", refreshBtn);
+      // the status read is one of the refresh's reads, and swallows its own error: no notice, the pane says it
+      if (takeFail("status")) panel.changes = "error";
+      else if (panel.changes === "error") panel.changes = "ok";
+      // so is the branch list's: a Refresh you pressed that cannot read it says so in the list (Phase 5 Q-B)
+      if (takeFail("branches")) panel.branches = "error";
+      else if (panel.branches === "error") panel.branches = "ok";
+      // conflicts resolved in your editor and git add-ed in a terminal: the files come back staged
+      if (conflicted.length && panel.changes === "ok") {
+        staged.push(...conflicted.map((f) => ({ p: f.p, s: f.c === "DU" ? "D" : f.c === "AA" ? "A" : "M" })));
+        conflicted = [];
+        byPath(staged);
+      }
+      renderStaging();
+      renderBranches();
+    }, 900);
+  });
+  // failure texts are the app's error classes (PushPullBar ERROR_MESSAGES)
+  pullBtn.addEventListener("click", () => {
+    clearNotice();
+    setBusy("pull");
+    setTimeout(() => {
+      setBusy(null);
+      if (takeFail("pull")) return showNotice("Pull failed.", "Network error.", pullBtn);
+      // diverged: libgit2 pull only fast-forwards
+      if (ahead > 0 && shell.behind > 0) return showNotice("Can't fast-forward.", "Merge manually.", pullBtn);
+      shell.behind = 0;  // fast-forwarded; the commits that arrive are data, not drawn here
+      updateAhead();
+    }, 800);
+  });
+  // push: the gold flake rides your line; its position is the transfer percentage
+  pushBtn.addEventListener("click", () => {
+    if (pushBtn.disabled) return;
+    clearNotice();
+    const publish = !shell.upstream;
+    // origin moved on (diverged) → rejected after the transfer starts; ?fail=push stands in for auth
+    const what = publish ? "Publish" : "Push";
+    const failure = takeFail("push") ? [`${what} failed.`, "Authentication required."]
+      : shell.behind > 0 ? [`${what} rejected.`, "Pull first."] : null;
+    setBusy("push");
+    const label = pushBtn.querySelector(".label");
+    const span = carriage.parentElement.clientWidth - 18;
+    const t0 = Date.now(), dur = 1500;
+    const rides = !reduce.matches;
+    if (rides) carriage.classList.add("run");
+    const land = () => {
+      carriage.classList.remove("run");
+      setTimeout(() => (carriage.style.transform = "translateX(0)"), 240);
+      setBusy(null);
+    };
+    // the app receives git-progress events throttled to 100 ms — simulate them;
+    // each event places the flake and a CSS transition smooths the step (no rAF)
+    const step = () => {
+      const k = Math.min(1, (Date.now() - t0) / dur);
+      if (failure && k >= 0.3) {
+        land();
+        return showNotice(...failure, pushBtn);
+      }
+      if (rides) carriage.style.transform = `translateX(${(k * span).toFixed(1)}px)`;
+      label.textContent = `${Math.round(k * 100)}%`;
+      if (k < 1) return setTimeout(step, 100);
+      const cur = current(), upstream = `origin/${cur.n}`;
+      for (const id of Object.keys(refs)) {
+        refs[id] = refs[id].filter((r) => r.n !== upstream);
+        if (!refs[id].length) delete refs[id];
+      }
+      (refs[headId] ||= []).push({ k: "remote", n: upstream, br: cur.br });
+      if (publish) {
+        // the new remote-tracking branch joins the legend, remotes in name order like the backend's
+        branches.push({ n: upstream, br: cur.br, remote: true });
+        const remotes = branches.filter((b) => b.remote).sort((x, y) => (x.n < y.n ? -1 : x.n > y.n ? 1 : 0));
+        branches.splice(0, branches.length, ...branches.filter((b) => !b.remote), ...remotes);
+        shell.upstream = true;
+      }
+      ahead = 0;
+      land();
+      renderGraph(); updateAhead();
+    };
+    step();
+  });
+
+  /* ---------- account: GitHub sign-in sits in the sign's corner; signed in, it opens a menu ---------- */
+  const acctBtn = $("account"), menu = $("acct-menu");
+  function renderAccount() {
+    const s = shell.auth;
+    acctBtn.classList.toggle("out", s !== "in");
+    acctBtn.disabled = s === "connecting";
+    // initials = the login's first two letters; an avatar image would need the network
+    $("avatar").innerHTML = s === "in" ? "TZ" : '<svg aria-hidden="true"><use href="#i-person"/></svg>';
+    $("acct-name").textContent = s === "in" ? "tznthou" : s === "connecting" ? "Connecting…" : "Connect GitHub";
+    acctBtn.title = s === "in" ? "Signed in to GitHub" : s === "connecting" ? "Waiting for GitHub…" : "Connect GitHub to see pull requests";
+    if (s === "in") {
+      acctBtn.setAttribute("aria-haspopup", "menu");
+      acctBtn.setAttribute("aria-expanded", String(!menu.hidden));
+    } else {
+      acctBtn.removeAttribute("aria-haspopup");
+      acctBtn.removeAttribute("aria-expanded");
+      menu.hidden = true;
+    }
+  }
+  function setMenu(open, { focus = false } = {}) {
+    menu.hidden = !open;
+    acctBtn.setAttribute("aria-expanded", String(open));
+    if (!open) return;
+    menu.classList.remove("enter"); void menu.offsetWidth; menu.classList.add("enter");
+    if (focus) $("signout").focus();
+  }
+  acctBtn.addEventListener("click", () => {
+    if (shell.auth === "out") return connect();
+    if (shell.auth === "in") setMenu(menu.hidden, { focus: true });
+  });
+  document.addEventListener("click", (e) => {
+    if (!menu.hidden && !e.target.closest(".acct")) setMenu(false);
+  });
+  menu.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { e.preventDefault(); setMenu(false); acctBtn.focus(); }
+    else if (e.key === "Tab") setMenu(false);
+  });
+  $("signout").addEventListener("click", () => { setMenu(false); signOut(); });
+  // from the account, or from the pull requests pane's Connect GitHub: the same sign-in
+  function connect(from = acctBtn) {
+    clearNotice();
+    shell.auth = "connecting";
+    renderAccount(); renderPRs();
+    // the app shows the device-code dialog in between (Phase 0b P6); the demo jumps to the outcome
+    setTimeout(() => {
+      if (takeFail("connect")) {
+        shell.auth = "out";
+        renderAccount(); renderPRs();
+        return showNotice("GitHub sign-in failed.", "Check your network.", from);
+      }
+      shell.auth = "in";
+      renderAccount();
+      // signed in, the pull requests are read again (the app waits for a Refresh today)
+      fetchPRs();
+    }, 900);
+  }
+  function signOut() {
+    clearNotice();
+    if (takeFail("signout")) return showNotice("Sign out failed.", "Try again.", acctBtn);
+    shell.auth = "out";
+    renderAccount(); renderPRs();
+    acctBtn.focus();
+  }
+
+  /* ---------- notice: a failed shell op says so until dismissed or the next op starts ---------- */
+  const notice = $("notice");
+  let noticeFrom = null;
+  // copy: a bold verdict and one short next step, ≤ the room the sign has at 1200px signed out
+  // from: the button to give the focus back to, or a function that finds it (a row redrawn since)
+  function showNotice(title, detail, from) {
+    $("notice-text").innerHTML = `<b>${esc(title)}</b>${detail ? " " + esc(detail) : ""}`;
+    notice.title = detail ? `${title} ${detail}` : title;
+    noticeFrom = from || null;
+    root.classList.add("has-notice");
+    notice.classList.remove("enter"); void notice.offsetWidth; notice.classList.add("enter");
+  }
+  function clearNotice({ refocus = false } = {}) {
+    if (!root.classList.contains("has-notice")) return;
+    root.classList.remove("has-notice");
+    const back = typeof noticeFrom === "function" ? noticeFrom() : noticeFrom;
+    if (refocus && back) back.focus();
+    noticeFrom = null;
+  }
+  $("notice-x").addEventListener("click", () => clearNotice({ refocus: true }));
+
+  /* ---------- tabs ---------- */
+  const tabs = [$("tab-changes"), $("tab-prs")];
+  function activate(tab) {
+    tabs.forEach((t) => {
+      const on = t === tab;
+      t.setAttribute("aria-selected", on);
+      t.tabIndex = on ? 0 : -1;
+      const panel = $(t.getAttribute("aria-controls"));
+      panel.hidden = !on;
+      if (on) { panel.classList.remove("enter"); void panel.offsetWidth; panel.classList.add("enter"); }
+    });
+  }
+  tabs.forEach((t) => t.addEventListener("click", () => activate(t)));
+  document.querySelector(".tabs").addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const i = tabs.indexOf(document.activeElement);
+    const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+    next.focus(); activate(next);
+  });
+
+  /* ---------- pull requests ---------- */
+  const STATUS = {
+    approved: ["ok", "Approved"], changes_requested: ["bad", "Changes requested"],
+    success: ["ok", "Checks passing"], failure: ["bad", "Checks failing"], pending: ["wait", "Checks pending"],
+  };
+  const statusIcon = (key) => {
+    if (!key) return "";
+    const [cls, label] = STATUS[key];
+    return `<svg class="st ${cls}" role="img" aria-label="${label}"><title>${label}</title><use href="#i-${cls}"/></svg>`;
+  };
+  const lineOf = (sha) => {
+    const r = sha && (refs[sha] || []).find((x) => x.k === "local" || x.k === "remote" || x.k === "head");
+    return r ? { br: r.br, name: r.n.replace(/^origin\//, "") } : null;
+  };
+  let openPr = 38;
+  // the pane's picture: a branch that left the trunk and came back to it — a pull request, in the map's words
+  const PR_PICTURE = `<svg viewBox="0 0 176 36" aria-hidden="true">
+      <path d="M10 27H166" stroke="var(--l-trunk)" stroke-width="3.25" stroke-linecap="round"/>
+      <path d="M40 27 50 13H116L126 27" fill="none" stroke="var(--line)" stroke-width="3.25" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M72 13v-6M96 13v-6" stroke="var(--line)" stroke-width="3.25" stroke-linecap="round"/>
+      <circle cx="126" cy="27" r="5.6" fill="var(--sheet-hi)" stroke="var(--l-trunk)" stroke-width="2.2"/>
+    </svg>`;
+  const READ_FAILED = (what, hint, id) => `<svg class="mark" aria-hidden="true"><use href="#i-bad"/></svg>
+      <p><b>${what}</b></p><p class="hint">${hint}</p><button class="btn" type="button" id="${id}">Retry</button>`;
+  // github_list_prs: the backend asks whether origin is on github.com first, then reads the token
+  const prState = () => (!shell.remote ? "not-github" : shell.auth !== "in" ? "signed-out" : panel.prs);
+  function renderPRs() {
+    const s = prState(), list = $("prs"), box = $("prs-state");
+    list.hidden = s !== "ok" && s !== "loading";
+    box.hidden = !list.hidden;
+    box.removeAttribute("role");
+    if (s === "loading") {
+      list.setAttribute("aria-label", "Loading pull requests");
+      list.innerHTML = [[78, 46], [64, 52], [71, 40]].map(([a, b]) => `<li class="sk sk-pr" aria-hidden="true"><i style="width:${a}%"></i><i style="width:${b}%"></i></li>`).join("");
+      return;
+    }
+    list.removeAttribute("aria-label");
+    if (s !== "ok") {
+      const body = {
+        "not-github": `${PR_PICTURE}<p>No GitHub remote</p><p class="hint">Pull requests come from origin on github.com.</p>`,
+        "signed-out": `${PR_PICTURE}<p>Connect GitHub to see pull requests</p><button class="btn" type="button" id="prs-connect"${shell.auth === "connecting" ? " disabled" : ""}>${shell.auth === "connecting" ? "Connecting…" : "Connect GitHub"}</button>`,
+        empty: `${PR_PICTURE}<p>No open pull requests</p>`,
+        // the reset time from X-RateLimit-Reset, as a clock time so it does not go stale while it shows
+        rate: READ_FAILED("GitHub's rate limit is used up.", "Try again after 14:32.", "prs-retry"),
+        error: READ_FAILED("Couldn't load pull requests.", "Check your network, then try again.", "prs-retry"),
+      }[s];
+      box.innerHTML = body;
+      if (s === "rate" || s === "error") box.setAttribute("role", "alert");
+      return;
+    }
+    list.innerHTML = prs.map((pr) => {
+      // the line it runs on is read off the map, so none until git_get_graph answers (Phase 5 Q-L)
+      const open = pr.n === openPr, line = walk.loading ? null : lineOf(pr.head);
+      return `<li class="pr${open ? " open" : ""}">
+        <button class="pr-row" data-pr="${pr.n}" aria-expanded="${open}">
+          <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
+          <span><span class="pr-title">${esc(pr.title)}${pr.draft ? '<span class="draft">Draft</span>' : ""}</span>
+          <span class="pr-meta"><span class="num">#${pr.n}</span><span>by ${esc(pr.author)} · ${pr.ago}</span>${line ? `<span class="via">${roundel(line.br)}${esc(line.name)}</span>` : ""}</span></span>
+          <span class="pr-status">${statusIcon(pr.review)}${statusIcon(pr.ci)}</span>
+        </button>
+        ${open ? `<div class="pr-body">${prBody(pr)}</div>` : ""}
+      </li>`;
+    }).join("");
+  }
+  // an open pull request's files, every one of them (github_get_pr_diff); it is not a local commit, so a
+  // file the display limit kept back says so without a command
+  function prBody(pr) {
+    if (panel.prDiff === "loading") return `<div class="skeleton" aria-label="Loading files"><i style="width:46%"></i><i style="width:84%"></i><i style="width:70%"></i></div>`;
+    if (panel.prDiff === "error") return `<p class="empty-line" role="alert"><b>Couldn't load the files.</b> <button class="text-btn" type="button" id="pr-diff-retry">Retry</button></p>`;
+    // over GitHub's limits for a diff (more than 300 files, or more lines than it counts: 406 too_large) or over
+    // Kira's own 1 MB: a fact about this pull request, not a failure, so a strip and no Retry (Phase 5c)
+    if (panel.prDiff === "large") return strip("Too large to show here.", "Read this pull request on GitHub.");
+    const files = diffs[pr.diff];
+    return files.length ? limitStrips(files, diffCut.has(pr.diff), "pull request") + files.map((f) => fileHTML(f)).join("")
+      : `<p class="empty-line">No file changes</p>`;
+  }
+  // reading the list again: a skeleton, then the list
+  function fetchPRs() {
+    panel.prs = "loading";
+    renderPRs();
+    setTimeout(() => { panel.prs = "ok"; renderPRs(); }, 600);
+  }
+  $("panel-prs").addEventListener("click", (e) => {
+    if (e.target.closest("#prs-connect")) return connect(() => $("prs-connect"));
+    // a Retry that worked: focus stays in the area it reads again — the pane, or the pull request whose files they are
+    if (e.target.closest("#prs-retry")) { $("panel-prs").focus(); return fetchPRs(); }
+    if (e.target.closest("#pr-diff-retry")) { panel.prDiff = "ok"; renderPRs(); document.querySelector(".pr.open .pr-row").focus(); return; }
+    const b = e.target.closest(".pr-row");
+    if (!b) return;
+    const n = Number(b.dataset.pr);
+    openPr = openPr === n ? null : n;
+    renderPRs();
+    document.querySelector(`.pr-row[data-pr="${n}"]`).focus();
+  });
+
+  /* ---------- diff ---------- */
+  const diffEl = $("diff");
+  const BADGE = { M: "Modified", A: "Added", D: "Deleted", R: "Renamed" };
+  // c: the commit the diff is of, for the command a kept-back file gives; a pull request's files have none
+  function fileHTML(f, c = null) {
+    let body;
+    if (f.tooLarge) body = `<div class="dcell warn"><b>Over 10 MB.</b> Diff skipped.</div>`;
+    else if (f.binary) body = `<div class="dcell">Binary file</div>`;
+    else if (f.omitted) {
+      // kept back by the display limit (B1): too big on its own, or the files before it used the limit up
+      const { reason, lines, bytes } = f.omitted;
+      const size = `<span class="size">${plural(lines, "line")} · ${formatBytes(bytes)}</span>`;
+      // no command for a renamed file: with only the new path git cannot pair the rename and prints the file as added
+      // in full (review, 2026-10-11; the command would need the old path too)
+      const cmd = c && f.s !== "R" ? showCommand(c, f.p) : null;
+      body = `<div class="dcell warn"><div>${reason === "File" ? "<b>Too large to show.</b>" : "<b>Not shown.</b> The files before it used up the display limit."} ${size}</div>`
+        + (cmd ? `<div class="how">In a terminal: <code>${esc(cmd)}</code></div>` : "") + `</div>`;
+    } else if (!f.hunks.length) body = `<div class="dcell">No text changes</div>`;
+    else body = f.hunks.map((h) => {
+      let o = h.o, n = h.n, oc = 0, nc = 0;
+      const lang = langOf(f.p);
+      const lines = h.lines.map((raw) => {
+        const og = raw[0], code = raw.slice(1);
+        // git's "\ No newline at end of file" (libgit2's origin = > <): a note on the line above, not a line of
+        // either side, so no numbers, not counted in the header and not coloured
+        if (og === "\\") return `<div class="dl eof"><span class="ln"></span><span class="ln"></span><span class="og"></span><code>${escCode(raw)}</code></div>`;
+        let a = "", b = "", cls = "ctx", mark = "";
+        if (og === "+") { b = n++; nc++; cls = "add"; mark = "+"; }
+        else if (og === "-") { a = o++; oc++; cls = "del"; mark = "−"; }
+        else { a = o++; b = n++; oc++; nc++; }
+        return `<div class="dl ${cls}"><span class="ln">${a}</span><span class="ln">${b}</span><span class="og">${mark}</span><code>${highlight(code, lang)}</code></div>`;
+      }).join("");
+      const head = `@@ -${h.o},${oc} +${h.n},${nc} @@${h.ctx ? " " + h.ctx : ""}`;
+      return `<div class="hunk-head">${escCode(head)}</div><div class="hunk-body"><div class="hunk-inner">${lines}</div></div>`;
+    }).join("");
+    return `<article class="dfile"><header class="dfile-head"><span class="badge ${f.s}" title="${BADGE[f.s]}">${f.s}</span><span class="dpath">${pathHTML(f.p)}</span></header>${body}</article>`;
+  }
+  // the diff area's picture: a line with its stations, and you at the end of it
+  const DIFF_PICTURE = `<svg viewBox="0 0 176 36" aria-hidden="true">
+          <path d="M10 18H150" stroke="var(--l-rokusho)" stroke-width="3.25" stroke-linecap="round"/>
+          <path d="M10 11.5v13" stroke="var(--l-rokusho)" stroke-width="3.25" stroke-linecap="round"/>
+          <path d="M48 18v-7.5M86 18v-7.5M124 18v-7.5" stroke="var(--l-rokusho)" stroke-width="3.25" stroke-linecap="round"/>
+          <polygon points="${hexPoints(162, 18, 9)}" fill="var(--gold-leaf)" stroke="var(--flake-edge)" stroke-width="1.3" stroke-linejoin="round"/>
+        </svg>`;
+  let diffTimer = null;
+  // ?diffat=<path>: once the diff has drawn at load it is scrolled to that file's header, 12px under the top (the
+  // padding's worth), so the comparison shots reach what is below the first screen; set at the end of the page
+  let diffAt = null;
+  function renderDiff() {
+    clearTimeout(diffTimer);
+    if (!selectedId) {
+      // an unborn repository has no station to select, so no keys to move between them
+      diffEl.innerHTML = shell.unborn
+        ? `<div class="diff-empty">
+        ${DIFF_PICTURE}
+        <p>Nothing to compare yet</p>
+        <p class="hint">Your first commit will show here.</p>
+      </div>`
+        : `<div class="diff-empty">
+        ${DIFF_PICTURE}
+        <p>Select a commit to view its diff</p>
+        <p class="hint"><kbd>↑</kbd> <kbd>↓</kbd> move between stations · <kbd>Esc</kbd> to clear</p>
+      </div>`;
+      root.dataset.ready = "1";
+      return;
+    }
+    diffEl.innerHTML = `<div class="skeleton" aria-label="Loading diff"><i style="width:42%"></i><i style="width:88%"></i><i style="width:76%"></i><i style="width:64%"></i></div>`;
+    diffTimer = setTimeout(() => {
+      const i = indexOf().get(selectedId);
+      const c = commits[i];
+      const files = diffs[selectedId] || diffs[DIFF_ROTATION[i % DIFF_ROTATION.length]];
+      if (panel.diff === "error") {
+        diffEl.innerHTML = `<div class="diff-empty" role="alert">${READ_FAILED("Couldn't load this diff.", "Try again, or pick another station.", "diff-retry")}</div>`;
+      } else if (!files.length) {
+        diffEl.innerHTML = `<div class="diff-empty">${DIFF_PICTURE}<p>No file changes</p><p class="hint">This commit changes no files.</p></div>`;
+      } else {
+        diffEl.innerHTML = limitStrips(files, diffCut.has(selectedId), "commit") + files.map((f) => fileHTML(f, c)).join("");
+      }
+      diffEl.scrollTop = 0;
+      const at = diffAt && [...diffEl.querySelectorAll(".dfile")].find((f) => f.querySelector(".dpath").textContent === diffAt);
+      if (at) diffEl.scrollTop += at.getBoundingClientRect().top - diffEl.getBoundingClientRect().top - 12;
+      diffAt = null;
+      diffEl.classList.remove("enter"); void diffEl.offsetWidth; diffEl.classList.add("enter");
+      root.dataset.ready = "1";
+    }, 180);
+  }
+  diffEl.addEventListener("click", (e) => {
+    if (e.target.closest("#diff-retry")) { panel.diff = "ok"; renderDiff(); diffEl.focus(); }
+  });
+
+  /* ---------- ?state= opens the demo in one of the sign's states (the D1 state matrix) ---------- */
+  // with the default data a pull fetches commits that cannot fast-forward onto your 2 unpushed ones,
+  // and a push meets the same remote commits (rejected); the local behind count is stale either way
+  const NOTICES = {
+    "error-push": ["Push rejected.", "Pull first.", pushBtn],
+    "error-pull": ["Can't fast-forward.", "Merge manually.", pullBtn],
+    "error-refresh": ["Refresh failed.", "", refreshBtn],
+    "error-open": ["Couldn't open repo.", "It may have moved.", null],
+    "error-auth": ["GitHub sign-in failed.", "Check your network.", acctBtn],
+    "error-signout": ["Sign out failed.", "Try again.", acctBtn],
+    // Phase 0b P5: a press in the sidebar or the changes pane that failed (DIRTY_TREE, GIT_IDENTITY_MISSING)
+    "error-checkout": ["Checkout failed.", "Commit or stash first.", branchBtn("fix/toolbar-jump")],
+    "error-commit": ["Commit failed.", "Set your git name and email.", commitBtn],
+  };
+  // drop one remote-tracking branch (by name), or every one (null), from the map and the legend
+  function dropRemote(name) {
+    for (const id of Object.keys(refs)) {
+      refs[id] = refs[id].filter((r) => r.k !== "remote" || (name !== null && r.n !== name));
+      if (!refs[id].length) delete refs[id];
+    }
+    for (let i = branches.length - 1; i >= 0; i--) {
+      if (branches[i].remote && (name === null || branches[i].n === name)) branches.splice(i, 1);
+    }
+  }
+  /* ---------- graph states (Phase 0b P4): lanes, colours and letters are computeRoutes' for the same GraphData ---------- */
+  let reselect = false;  // a state that stands for "just opened": the selection is HEAD, or nothing
+  // another repository: the sign names it, and opening it put it at the top of the recent list
+  function otherRepo(name) {
+    const st = document.querySelector(".st-path");
+    const path = `~/Documents/${name}`, abs = st.title.replace(/[^/]+$/, name);  // a sibling of the open repo
+    document.querySelector(".st-name").textContent = name;
+    Object.assign(st, { textContent: path, title: abs });
+    document.querySelector(".side-list").insertAdjacentHTML("afterbegin",
+      `<li><button class="repo-item" title="${abs}"><span class="ri-name">${name}</span><span class="ri-meta"><span class="ri-path">${path}</span><span class="ri-date">2026/10/3</span></span></button></li>`);
+    commits.length = 0;
+    for (const id of Object.keys(refs)) delete refs[id];
+    branches.length = 0;
+    staged = []; unstaged = [];
+    Object.assign(shell, { upstream: false, behind: 0, remote: false });
+    ahead = 0;
+    walk.truncated = false;
+    headId = null; selectedId = null; reselect = true;
+  }
+  // HEAD leaves the branch it is on: its pill becomes a plain local ref, the branch keeps its counts
+  function leaveCurrent() {
+    for (const list of Object.values(refs)) for (const r of list) if (r.k === "head") r.k = "local";
+    const was = current();
+    if (was) Object.assign(was, { ahead, behind: shell.behind, upstream: shell.upstream, current: false });
+  }
+  // the backend lists local branches, then remote ones, each in name order
+  function sortLegend() {
+    const by = (x, y) => (x.n < y.n ? -1 : x.n > y.n ? 1 : 0);
+    branches.splice(0, branches.length, ...branches.filter((b) => !b.remote).sort(by), ...branches.filter((b) => b.remote).sort(by));
+  }
+  const YOUNG = [
+    { id: "b41c7e2", lane: 0, br: "main", s: "feat: open a repository and list its commits", p: ["5e0d9a3"], t: "2026/10/03 10:12" },
+    { id: "5e0d9a3", lane: 0, br: "main", s: "docs: add a README", p: ["a17f3c0"], t: "2026/10/02 21:40" },
+    { id: "a17f3c0", lane: 0, br: "main", s: "Initial commit", p: [], t: "2026/10/02 21:31" },
+  ];
+  const YOUNG_DIFFS = {
+    // a template literal over three lines (review decision A, 2026-10-12): its first line is a string to the end of the
+    // line, the line inside it is code that knows nothing of it, its last line is the closing backtick's string
+    b41c7e2: [{ p: "src/main.ts", s: "M", hunks: [{ o: 1, n: 1, ctx: "", lines: [
+      " import { invoke } from \"@tauri-apps/api/core\";",
+      " ",
+      "-console.log(\"kira-new\");",
+      "+const commits = await invoke<string[]>(\"list_commits\", { path: \".\" });",
+      "+const banner = `Kira",
+      "+  ${commits.length} commits on main",
+      "+`;",
+      "+console.log(banner);",
+    ] }] },
+    // a line of JSX text holding an expression is not a line of text (Q-H3), so its apostrophe opens a string that runs
+    // to the end of the line: here to be seen
+    { p: "src/App.tsx", s: "A", hunks: [{ o: 0, n: 1, ctx: "", lines: [
+      "+export function App({ branch, commits }: Props) {",
+      "+  return (",
+      "+    <main>",
+      "+      <h1>kira-new</h1>",
+      "+      <p>You're in {branch} with {commits.length} new commits</p>",
+      "+    </main>",
+      "+  );",
+      "+}",
+    ] }] }],
+    "5e0d9a3": [{ p: "README.md", s: "A", hunks: [{ o: 0, n: 1, ctx: "", lines: [
+      "+# kira-new", "+", "+A small repository to try Kira on.", "+Run it with `npm run tauri dev` (needs Rust).",
+    ] }] }],
+    a17f3c0: [{ p: "src/main.ts", s: "A", hunks: [{ o: 0, n: 1, ctx: "", lines: [
+      "+import { invoke } from \"@tauri-apps/api/core\";",
+      "+",
+      "+console.log(\"kira-new\");",
+    ] }] }],
+  };
+  // one small history that meets every routing case (route rules combo A): a fork across three columns
+  // (legend) with one across two joining its boundary (gutter), a fork wider than it is tall (compass) with
+  // one from the next column joining its boundary (search), main merged into a branch (search), and links
+  // crossing a line. Lanes, colours and letters are computeRoutes'
+  const ROUTES = [
+    { id: "3fa2c71", lane: 1, br: "search", s: "feat(search): rank matches by how recently a note was opened", p: ["9d4e6a0"], t: "2026/10/03 13:50" },
+    { id: "b6d0e94", lane: 2, br: "notes", s: "feat(notes): pin a note to the top of its notebook", p: ["e07b52d"], t: "2026/10/03 12:20" },
+    { id: "58c1a3f", lane: 3, br: "legend", s: "feat(legend): show the legend beside the map", p: ["a6f38d1"], t: "2026/10/03 10:40" },
+    { id: "e07b52d", lane: 0, br: "main", s: "fix: keep the map centered when the window resizes", p: ["c21f8b7"], t: "2026/10/02 22:15" },
+    { id: "9d4e6a0", lane: 1, br: "search", s: "Merge branch 'main' into feat/search", p: ["71ae3d9", "c21f8b7"], t: "2026/10/02 20:30" },
+    { id: "c21f8b7", lane: 0, br: "main", s: "feat: open notes from the command palette", p: ["a6f38d1"], t: "2026/10/02 18:05" },
+    { id: "4b9c0e2", lane: 2, br: "gutter", s: "fix(gutter): keep the gutter off the scrollbar", p: ["a6f38d1"], t: "2026/10/02 15:40" },
+    { id: "71ae3d9", lane: 1, br: "search", s: "feat(search): search note titles as you type", p: ["d83b2f6"], t: "2026/10/02 11:25" },
+    { id: "a6f38d1", lane: 0, br: "main", s: "refactor: move map tiles into their own module", p: ["0e5d7b4"], t: "2026/10/01 21:10" },
+    { id: "0e5d7b4", lane: 0, br: "main", s: "docs: describe the keyboard shortcuts", p: ["d83b2f6"], t: "2026/10/01 17:45" },
+    { id: "7c4e1a9", lane: 2, br: "compass", s: "fix(compass): point north again after the map resets", p: ["d83b2f6"], t: "2026/10/01 16:10" },
+    { id: "d83b2f6", lane: 0, br: "main", s: "feat: draw the map from tiles", p: ["6c1e9a8"], t: "2026/10/01 14:30" },
+    { id: "6c1e9a8", lane: 0, br: "main", s: "chore: add a lint script", p: ["f4a7d05"], t: "2026/09/30 22:05" },
+    { id: "f4a7d05", lane: 0, br: "main", s: "feat: open a notebook from disk", p: ["2b8e4c1"], t: "2026/09/30 19:20" },
+  ];
+  const ROUTES_DIFFS = {
+    "3fa2c71": [{ p: "src/search/rank.ts", s: "M", hunks: [{ o: 8, n: 8, ctx: "export function rank(", lines: [
+      "   const hits = notes.filter((n) => matches(n.title, query));",
+      "-  return hits.sort((a, b) => a.title.localeCompare(b.title));",
+      "+  // the note you opened last is most likely the one you are after",
+      "+  return hits.sort((a, b) => b.openedAt - a.openedAt);",
+      " }",
+    ] }] }],
+    b6d0e94: [{ p: "src/notes/pin.ts", s: "A", hunks: [{ o: 0, n: 1, ctx: "", lines: [
+      "+import type { Note } from \"./note\";",
+      "+",
+      "+export function pinned(notes: Note[]): Note[] {",
+      "+  return [...notes.filter((n) => n.pinned), ...notes.filter((n) => !n.pinned)];",
+      "+}",
+    ] }] }],
+    "58c1a3f": [{ p: "src/map/Legend.tsx", s: "A", hunks: [{ o: 0, n: 1, ctx: "", lines: [
+      "+export function Legend({ layers }: { layers: Layer[] }) {",
+      "+  return (",
+      "+    <ul className=\"legend\">",
+      "+      {layers.map((l) => <li key={l.id}>{l.name}</li>)}",
+      "+    </ul>",
+      "+  );",
+      "+}",
+    ] }] }],
+  };
+
+  /* ---------- panel states (Phase 0b P5): the diff at its limits, a big commit, a big working tree ---------- */
+  // a deterministic run of hex digits, for generated names
+  const hexAt = (i, len = 8) => {
+    let x = Math.imul(i + 1, 2654435761) >>> 0, s = "";
+    while (s.length < len) { x = Math.imul(x ^ (x >>> 15), 2246822519) >>> 0; s += x.toString(16).padStart(8, "0"); }
+    return s.slice(0, len);
+  };
+  // a minified bundle's single line, n characters long: built here, since a 62,000-character line would bury the source
+  function minified(seed, n) {
+    const ids = "etnrsaoilcdu";
+    let s = '!function(){"use strict";', k = seed;
+    while (s.length < n) { k++; const a = ids[k % 12], b = ids[(k * 7) % 12]; s += `var ${a}${k % 97}=function(${a},${b}){return ${a}&&${b}.call(this,${a},${k % 31})},`; }
+    return s.slice(0, n);
+  }
+  // the merge of #36 at the display limit (B1), files in path order as the backend sends them: two built bundles
+  // of one long line each use up most of the 256K characters, so the notes after them no longer fit (Total) while
+  // the small files after the notes still do; the lock file is over 2,000 lines on its own (File). The film is over
+  // 10 MB (libgit2 skips it), the icon is binary, the release script only changed its mode, and the capability
+  // file only gained its newline at the end
+  const LIMITS = () => [
+    { p: "dist/assets/index-4c6dafd.js", s: "M", hunks: [{ o: 1, n: 1, ctx: "", lines: [`-${minified(1, 61900)}`, `+${minified(2, 62010)}`] }] },
+    { p: "dist/assets/vendor-9a58413.js", s: "M", hunks: [{ o: 1, n: 1, ctx: "", lines: [`-${minified(3, 61200)}`, `+${minified(4, 61350)}`] }] },
+    { p: "docs/demo/kira v8.mov", s: "A", tooLarge: true, binary: true, hunks: [] },
+    { p: "docs/notes/v8 port [draft].md", s: "A", omitted: { reason: "Total", lines: 812, bytes: 42188 }, hunks: [] },
+    { p: "package-lock.json", s: "M", omitted: { reason: "File", lines: 3412, bytes: 143566 }, hunks: [] },
+    { p: "scripts/release.sh", s: "M", hunks: [] },
+    // only gains its newline at the end: git's note sits under the line it is about (libgit2's hunk for this file)
+    { p: "src-tauri/capabilities/default.json", s: "M", hunks: [{ o: 13, n: 13, ctx: "", lines: [
+      "       ]",
+      "     }",
+      "   ]",
+      "-}",
+      "\\ No newline at end of file",
+      "+}",
+    ] }] },
+    { p: "src-tauri/icons/icon.icns", s: "M", binary: true, hunks: [] },
+    { p: "src/components/Graph/RouteLayer.tsx", s: "R", hunks: [{ o: 1, n: 1, ctx: "", lines: [
+      " import { memo } from \"react\";",
+      "-import type { LayoutEdge } from \"@/lib/graphLayout\";",
+      "+import type { Track } from \"@/lib/routeMap\";",
+      " ",
+      "-export const GraphCanvas = memo(function GraphCanvas({ edges }: { edges: LayoutEdge[] }) {",
+      "+export const RouteLayer = memo(function RouteLayer({ tracks }: { tracks: Track[] }) {",
+    ] }] },
+  ];
+  // a commit that touches more than 500 files: the backend sends the first 500 in path order and says so
+  const LOCALES = "ar bg cs da de el es fi fr he hu id it ja ko nl no pl pt ro ru sv th tr uk".split(" ");
+  const NAMESPACES = "app branches changes clone commit dialogs diff errors graph home menu notices prs pull push recent settings sign-in staging toolbar".split(" ");
+  // a fix that hides what it does with bidirectional controls (Phase 5 Q-T, Trojan Source's stretched string): obeyed,
+  // the new if reads as a check on the role and a comment; it is one string, so every caller deletes main. The
+  // function line above it carries a pair of isolates, so the hunk header has controls to name too. The binary
+  // beside it hides its name the old way: obeyed, scripts/setup<RLO>hs.exe reads as scripts/setupexe.sh. The log
+  // line holds a bare carriage return: through innerHTML it would read as two lines (review, 2026-10-11)
+  const BIDI_DIFF = () => [{ p: "scripts/setup\u202ehs.exe", s: "A", binary: true, hunks: [] },
+    { p: "src/lib/github.ts", s: "M", hunks: [{ o: 40, n: 40,
+    ctx: "export async function refetchPRs(repo: Repo) { // \u2066readers wait\u2069", lines: [
+      "   const role = await getRole(repo);",
+      "-  await listPRs(repo);",
+      "+  if (role != \"reader\u202e \u2066// Check if owner\u2069 \u2066\") {",
+      "+    await deleteBranch(repo, \"main\");",
+      "+    log(\"deleted\r\");",
+      "+    log(\"split\u2028line\");",
+      "+  }",
+      "+  await listPRs(repo);",
+      " }",
+    ] }] }];
+  const MANY = () => LOCALES.flatMap((l) => NAMESPACES.map((ns) => ({ p: `src/i18n/${l}/${ns}.json`, s: "M", hunks: [{ o: 3, n: 3, ctx: "", lines: [
+    `   "title": "${ns}",`, `-  "refresh": "Refresh",`, `+  "refresh": "Reload",`, ` }`,
+  ] }] })));
+
+  function applyState(s) {
+    if (s === "loading") {
+      // git_get_graph is still out; ahead/behind, branches and status are back. The open itself is
+      // still running (bootLoading), so Switch repo, Open and Clone wait
+      walk.loading = true;
+      selectedId = null; reselect = true;
+      document.querySelectorAll(".side-foot .btn, .tools > .btn:last-child").forEach((b) => (b.disabled = true));
+    }
+    else if (s === "empty") {
+      // git init: HEAD names main, nothing is committed, no remote
+      otherRepo("kira-new");
+      unstaged = [{ p: "README.md", s: "A" }, { p: "package.json", s: "A" }, { p: "src/main.ts", s: "A" }];
+      shell.unborn = { n: "main", br: "main" };
+    }
+    else if (s === "young") {
+      // three commits in: the first one is the root, and the line ends there in a bar
+      otherRepo("kira-new");
+      commits.push(...YOUNG.map((c) => ({ ...c })));
+      Object.assign(diffs, YOUNG_DIFFS);
+      refs.b41c7e2 = [{ k: "head", n: "main", br: "main" }];
+      branches.push({ n: "main", br: "main", current: true });
+      headId = selectedId = "b41c7e2";
+    }
+    else if (s === "routes") {
+      // the routing cases, on a repository in step with origin
+      otherRepo("fieldbook");
+      Object.assign(LINE, { search: "--l-shinsha", notes: "--l-gunjo", legend: "--l-murasaki", gutter: "--l-odo", compass: "--l-rokusho" });
+      Object.assign(LETTER, { search: "S", notes: "N", legend: "L", gutter: "G", compass: "C" });
+      commits.push(...ROUTES.map((c) => ({ ...c })));
+      Object.assign(diffs, ROUTES_DIFFS);
+      DIFF_ROTATION.splice(0, DIFF_ROTATION.length, "3fa2c71", "b6d0e94", "58c1a3f");
+      Object.assign(refs, {
+        "3fa2c71": [{ k: "head", n: "feat/search", br: "search" }, { k: "remote", n: "origin/feat/search", br: "search" }],
+        b6d0e94: [{ k: "local", n: "feat/notes", br: "notes" }],
+        "58c1a3f": [{ k: "local", n: "feat/legend", br: "legend" }],
+        e07b52d: [{ k: "local", n: "main", br: "main" }, { k: "remote", n: "origin/main", br: "main" }],
+        "4b9c0e2": [{ k: "local", n: "fix/gutter", br: "gutter" }],
+        "7c4e1a9": [{ k: "local", n: "fix/compass", br: "compass" }],
+      });
+      branches.push(
+        { n: "feat/search", br: "search", current: true }, { n: "feat/notes", br: "notes" }, { n: "feat/legend", br: "legend" },
+        { n: "fix/compass", br: "compass" }, { n: "fix/gutter", br: "gutter" }, { n: "main", br: "main" },
+        { n: "origin/feat/search", br: "search", remote: true }, { n: "origin/main", br: "main", remote: true },
+      );
+      sortLegend();
+      Object.assign(shell, { remote: true, upstream: true });
+      walk.truncated = true;  // the oldest commit's parent is beyond the window
+      panel.prs = "empty";    // fieldbook's origin is on GitHub, with nothing open
+      headId = selectedId = "3fa2c71";
+    }
+    else if (s === "new-branch") {
+      // git switch -c feat/v8-graph on main: no commit of its own yet, so HEAD sits on the trunk's
+      // station and the accent is the branch's own colour (route rules decision D)
+      LINE.v8g = "--l-shinsha"; LETTER.v8g = "V";
+      leaveCurrent();
+      refs.dd9ba36.unshift({ k: "head", n: "feat/v8-graph", br: "v8g" });
+      branches.push({ n: "feat/v8-graph", br: "v8g", current: true });
+      sortLegend();
+      ahead = 0; shell.behind = 0; shell.upstream = false;
+      headId = selectedId = "dd9ba36"; reselect = true;
+    }
+    else if (s === "head-beyond") {
+      // an old branch checked out: its tip is older than the 23 commits loaded (route rules §3)
+      LINE.old = "--l-odo"; LETTER.old = "O";
+      leaveCurrent();
+      branches.push({ n: "feat/old", br: "old", current: true }, { n: "origin/feat/old", br: "old", remote: true });
+      sortLegend();
+      ahead = 0; shell.behind = 0; shell.upstream = true;
+      headId = null; selectedId = null; reselect = true;
+    }
+    else if (s === "lodger") {
+      // release/0.1 was cut at the merge of #36 and has no commit of its own: it lodges on the trunk
+      refs["63421cf"] = [{ k: "local", n: "release/0.1", br: "main", lodge: true }, { k: "remote", n: "origin/release/0.1", br: "main", lodge: true }];
+      branches.push({ n: "release/0.1", br: "main", lodge: true }, { n: "origin/release/0.1", br: "main", remote: true, lodge: true });
+      sortLegend();
+    }
+    else if (s === "long-refs") {
+      // a long branch name on its own line; on main's tip a release branch (no line of its own) and the
+      // final tag join it, and the row passes the budget
+      const long = "feat/t14-unstaged-cap-and-console-discipline";
+      LINE.tj = "--l-shinsha"; LETTER.tj = "U";
+      for (const list of Object.values(refs)) for (const r of list) if (r.br === "tj") r.n = r.k === "remote" ? `origin/${long}` : long;
+      for (const b of branches) if (b.br === "tj") b.n = b.remote ? `origin/${long}` : long;
+      refs.dd9ba36 = [
+        { k: "local", n: "main", br: "main" }, { k: "local", n: "release/0.1", br: "main", lodge: true },
+        { k: "remote", n: "origin/main", br: "main" }, { k: "remote", n: "origin/release/0.1", br: "main", lodge: true },
+        { k: "tag", n: "v0.1.0" }, { k: "tag", n: "v0.1.0-rc.1" },
+      ];
+      branches.push({ n: "release/0.1", br: "main", lodge: true }, { n: "origin/release/0.1", br: "main", remote: true, lodge: true });
+      sortLegend();
+    }
+    // ---------- Phase 0b P5: the sidebar, the right pane, the diff ----------
+    else if (s === "opening") {
+      // just opened: nothing has answered — not the graph, the branches, the status, the pull requests, nor ahead/behind
+      applyState("loading");
+      panel.branches = panel.changes = panel.prs = "loading";
+      shell.unknown = true;
+    }
+    else if (s === "pruned") {
+      // origin deleted fix/toolbar-jump and a fetch --prune took its remote-tracking branch; the upstream is still
+      // configured, so the branch says so, and has nothing left to count against
+      dropRemote("origin/fix/toolbar-jump");
+      branches.find((b) => b.n === "fix/toolbar-jump").pruned = true;
+    }
+    // git_list_branches failed on a read you asked for: opening the repo, or a Refresh you pressed (Phase 5 Q-B)
+    else if (s === "branches-error") panel.branches = "error";
+    else if (s === "conflict") {
+      // a merge run in a terminal stopped on three files; what merged cleanly is staged
+      staged = [{ p: "src/components/Graph/rowRefs.ts", s: "M" }, { p: "src/styles/v8.css", s: "M" }];
+      unstaged = [];
+      conflicted = [{ p: "src/App.tsx", c: "UU" }, { p: "src/components/Graph/RouteLayer.tsx", c: "UU" }, { p: "src/lib/graphLayout.ts", c: "DU" }];
+    }
+    else if (s === "many-changes") {
+      // node_modules was never ignored: the status stops at 5,000 files in path order, so the src/ changes are not among them
+      unstaged = [{ p: "docs/PLAN.md", s: "M" }, ...Array.from({ length: 4999 }, (_, i) => ({ p: `node_modules/.vite/deps/chunk-${hexAt(i)}.js`, s: "A" }))];
+      byPath(unstaged);
+      unstagedCut = true;
+    }
+    else if (s === "changes-error") panel.changes = "error";
+    else if (s === "prs-loading") panel.prs = "loading";
+    else if (s === "prs-empty") panel.prs = "empty";
+    else if (s === "prs-rate") panel.prs = "rate";
+    else if (s === "prs-error") panel.prs = "error";
+    else if (s === "pr-diff-loading") panel.prDiff = "loading";
+    else if (s === "pr-diff-error") panel.prDiff = "error";
+    else if (s === "pr-diff-empty") { diffs.pr38 = []; prs.find((p) => p.n === 38).diff = "pr38"; }
+    // #38 also updates the lock file, too large to show on its own (the display limit, B1); files in path order
+    else if (s === "pr-diff-limits") {
+      diffs.pr38 = [{ p: "package-lock.json", s: "M", omitted: { reason: "File", lines: 3412, bytes: 143566 }, hunks: [] }, ...diffs.e81d6b0];
+      prs.find((p) => p.n === 38).diff = "pr38";
+    }
+    else if (s === "pr-diff-too-large") panel.prDiff = "large";
+    else if (s === "diff-empty") { diffs.dd9ba36 = []; selectedId = "dd9ba36"; reselect = true; }
+    else if (s === "diff-error") { panel.diff = "error"; reselect = true; }
+    else if (s === "diff-limits") {
+      diffs["63421cf"] = LIMITS();
+      // a commit with one parent keeps a lock file back too, so its command (no -m --first-parent) can be seen
+      diffs.c9e41f2 = [{ p: "src-tauri/Cargo.lock", s: "M", omitted: { reason: "File", lines: 2486, bytes: 98112 }, hunks: [] }, ...diffs.c9e41f2];
+      selectedId = "63421cf"; reselect = true;
+    }
+    else if (s === "diff-many") { diffs["314e219"] = MANY(); diffCut.add("314e219"); selectedId = "314e219"; reselect = true; }
+    else if (s === "diff-bidi") { diffs["357dfda"] = BIDI_DIFF(); selectedId = "357dfda"; reselect = true; }
+    else if (s === "behind") { ahead = 0; shell.behind = 3; }
+    else if (s === "diverged") shell.behind = 3;
+    else if (s === "no-upstream") { dropRemote(`origin/${current().n}`); shell.upstream = false; ahead = 0; }
+    else if (s === "no-remote") { dropRemote(null); shell.remote = false; shell.upstream = false; ahead = 0; }
+    else if (s === "detached") detach("7b03d5e");
+    else if (s === "signed-out") shell.auth = "out";
+    else if (s === "connecting") shell.auth = "connecting";
+    else if (s === "account-menu") setMenu(true);
+    else if (NOTICES[s]) {
+      if (s === "error-auth") shell.auth = "out";
+      showNotice(...NOTICES[s]);
+    }
+  }
+
+  /* ---------- boot ---------- */
+  renderGraph();
+  renderBranches();
+  renderStaging();
+  renderPRs();
+  renderDiff();
+  renderAccount();
+  updateAhead();
+  syncLine();
+  const q = new URLSearchParams(location.search);
+  const states = (q.get("state") || "").split(",").filter(Boolean);
+  states.forEach(applyState);
+  if (states.length) {
+    renderGraph(); renderAccount(); updateAhead(); renderYouAre(); syncLine(); renderStaging(); renderPRs();
+    if (shell.detached) select(headId);  // opening a repo selects HEAD
+    else if (reselect) select(selectedId);
+  }
+  // ?on=<branch> opens the demo already checked out there (e.g. ?on=main). After the states, so a branch a state
+  // adds can be the one (?state=lodger&on=release/0.1)
+  const on = q.get("on");
+  if (on) { checkout(on); select(headId); }
+  // ?tab=prs: the pull requests pane up from the start, for the comparison shots
+  if (q.get("tab") === "prs") activate($("tab-prs"));
+  // ?scroll=end: the graph scrolled to the end of the loaded history, for the comparison shots
+  if (q.get("scroll") === "end") $("graph-scroll").scrollTop = $("graph-scroll").scrollHeight;
+  // ?tip=<id>: that row's station board up from the start, for the comparison shots (a scroll hides it,
+  // so not together with scroll=end)
+  const tipRow = q.get("tip") && $(`r-${q.get("tip")}`);
+  if (tipRow) showTip(tipRow);
+  // ?diffat=<path>: the diff scrolled to that file once it has drawn (renderDiff does it, after its timer)
+  diffAt = q.get("diffat");
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Kira default window capabilities. Note: tauri-plugin-dialog is intentionally NOT exposed to the webview via `dialog:*` permissions. Backend uses `DialogExt::dialog().file().blocking_pick_folder()` directly from Rust (e.g., git_pick_and_open_repo) so a compromised webview cannot invoke the dialog plugin to pre-fill paths or coerce file choices. Re-adding `dialog:allow-open` would reopen that attack surface. tauri-plugin-opener exposes only `allow-open-url` scoped to the exact GitHub OAuth device-flow verification URL (https://github.com/login/device); `opener:default` is intentionally not granted so reveal-in-dir / open-path commands stay unreachable from the webview, and the URL allowlist is the smallest viable scope (no glob, no other GitHub paths).",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://github.com/login/device" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+@import "tailwindcss";
+/* v8 基準 CSS（逐字同步，見檔頭）放 components 層：舊元件的 utility 在 utilities 層照樣贏。
+   不可不分層——它的 button / body 規則會壓過舊元件的 text-* / font-* utility（Phase 3 spike 實測） */
+@import "./styles/v8.css" layer(components);
+
+/* 舊 token → v8 變數的別名（Phase 3 過渡期）。亮暗與強調色由 v8 變數自己切換
+   （html[data-theme] / html[data-line]），舊元件的 class 不用改。Phase 3 保留 static 的理由是
+   highlight.css 在執行期讀 syntax-*；那批已隨 Phase 5 5b 刪，現在只剩 utility 讀，拿不拿掉等別名全刪時一起定。
+   各區移植（Phase 4–5）後舊元件消失，別名跟著刪（graph 的 9 個與 lane-1..5 隨 Phase 4、syntax-* 9 個
+   隨 5b 刪）。surface-2（舊按鈕底色）、accent（primary 按鈕）是別名解不了的兩個，由擁有它的 Phase 換掉。 */
+@theme static {
+  --color-app-bg: var(--ground);
+  --color-app-fg: var(--ink);
+
+  --color-surface-deep: var(--code-bg);
+  --color-surface-1: var(--sheet);
+  --color-surface-2: var(--hover);
+  --color-surface-3: var(--btn-hover-bg);
+
+  --color-border: var(--hairline);
+  --color-border-strong: var(--control);
+
+  --color-text-primary: var(--ink);
+  --color-text-secondary: var(--ink-2);
+  --color-text-tertiary: var(--ink-3);
+  --color-text-muted: var(--ink-3);
+  --color-text-faint: var(--ink-3);
+
+  --color-accent: var(--line);
+  --color-accent-hover: var(--line-ink);
+  --color-accent-fg: var(--rd-fg);
+  --color-link: var(--line-ink);
+  --color-accent-info: var(--info);
+
+  --color-danger-fg: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-warning-fg: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-success-fg: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-info-fg: var(--info);
+  --color-info-bg: color-mix(in oklab, var(--info) 15%, var(--sheet));
+}
+
+/* v8 只在 body 擋回彈；還沒移植的舊捲動區過渡期仍靠 root（v8 之前的修法）。底色交給 v8 的 body */
+html {
+  overscroll-behavior: none;
+}
